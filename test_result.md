@@ -155,6 +155,9 @@ backend:
       - working: true
         agent: "main"
         comment: "Returns empty array, working as expected"
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive testing completed - GET /api/status working correctly. Returns array of StatusCheck objects, validates response structure, handles empty and populated collections properly."
 
 frontend:
   - task: "Frontend server startup"
