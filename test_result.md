@@ -128,6 +128,9 @@ backend:
       - working: true
         agent: "main"
         comment: "Root endpoint returns 'Hello World' message successfully"
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive testing completed - GET /api/ working correctly. Returns expected JSON response with 'Hello World' message."
         
   - task: "API endpoint - POST /api/status"
     implemented: true
