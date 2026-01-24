@@ -131,15 +131,18 @@ backend:
         
   - task: "API endpoint - POST /api/status"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Status check endpoint exists, needs testing with POST request"
+      - working: true
+        agent: "testing"
+        comment: "Comprehensive testing completed - POST /api/status working correctly. Validates input, creates StatusCheck with UUID, stores in MongoDB, returns proper response format. Error handling works for missing fields and invalid JSON (422 status). Data persistence verified."
         
   - task: "API endpoint - GET /api/status"
     implemented: true
