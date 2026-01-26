@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 const StudyApp = () => {
   const [studyPack, setStudyPack] = useState<StudyPack | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Auto-hide sidebar on initial load
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -135,8 +135,8 @@ const StudyApp = () => {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+      {/* Main Content - Full width when sidebar collapsed */}
+      <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-full' : ''}`}>
         {/* Background decoration */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl" />
