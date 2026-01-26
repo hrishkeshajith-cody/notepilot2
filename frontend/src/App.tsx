@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemePreferencesProvider } from "@/hooks/useThemePreferences";
@@ -11,10 +11,38 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { NotePilotChat } from "@/components/NotePilotChat";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
+import AuthCallback from "./components/AuthCallback";
 import StudyApp from "./pages/StudyApp";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+// Router component to handle AuthCallback synchronously
+const AppRouter = () => {
+  const location = useLocation();
+  
+  // Check URL fragment (not query params) for session_id - SYNCHRONOUSLY during render
+  if (location.hash?.includes('session_id=')) {
+    return <AuthCallback />;
+  }
+  
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/auth" element={<Auth />} />
+      <Route
+        path="/app"
+        element={
+          <ProtectedRoute>
+            <StudyApp />
+          </ProtectedRoute>
+        }
+      />
+      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -26,20 +54,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <BrowserRouter>
-                <Routes>
-                  <Route path="/" element={<Landing />} />
-                  <Route path="/auth" element={<Auth />} />
-                  <Route
-                    path="/app"
-                    element={
-                      <ProtectedRoute>
-                        <StudyApp />
-                      </ProtectedRoute>
-                    }
-                  />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
+                <AppRouter />
               </BrowserRouter>
               <NotePilotChat />
             </TooltipProvider>
