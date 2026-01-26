@@ -168,6 +168,27 @@ const Auth = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Google OAuth Button */}
+            <Button
+              type="button"
+              onClick={handleGoogleLogin}
+              variant="outline"
+              className="w-full h-12 text-base font-semibold border-2 hover:bg-accent"
+            >
+              <GoogleIcon />
+              <span className="ml-2">Continue with Google</span>
+            </Button>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or continue with email</span>
+              </div>
+            </div>
+
             {/* Full Name - Only for signup */}
             {!isLogin && (
               <motion.div
