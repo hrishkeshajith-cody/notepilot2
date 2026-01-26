@@ -256,7 +256,11 @@ def run_all_tests():
         ("POST Status Endpoint", test_post_status_endpoint),
         ("POST Status Error Handling", test_post_status_error_handling),
         ("GET Status Endpoint", test_get_status_endpoint),
-        ("Data Persistence", test_data_persistence)
+        ("Data Persistence", test_data_persistence),
+        ("OAuth - Session Exchange", test_oauth_session_exchange),
+        ("OAuth - Auth Me Endpoint", test_oauth_auth_me),
+        ("OAuth - Logout Endpoint", test_oauth_logout),
+        ("OAuth - Error Scenarios", test_oauth_error_scenarios)
     ]
     
     results = {}
