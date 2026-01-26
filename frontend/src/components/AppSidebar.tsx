@@ -160,8 +160,8 @@ export function AppSidebar({ onSelectPack, isCollapsed, onToggleCollapse }: AppS
   return (
     <aside
       className={cn(
-        "h-screen bg-card border-r border-border flex flex-col transition-all duration-300",
-        isCollapsed ? "w-16" : "w-80"
+        "h-screen bg-card border-r border-border flex flex-col transition-all duration-300 overflow-hidden",
+        isCollapsed ? "w-0 border-0" : "w-80"
       )}
     >
       {/* Header */}
