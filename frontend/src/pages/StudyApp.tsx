@@ -135,6 +135,34 @@ const StudyApp = () => {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
+      {/* Floating toggle button when sidebar is hidden */}
+      {sidebarCollapsed && (
+        <motion.button
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          onClick={() => setSidebarCollapsed(false)}
+          className="fixed top-4 left-4 z-50 p-3 rounded-full bg-card border border-border shadow-lg hover:shadow-xl transition-all hover:scale-105"
+          aria-label="Open sidebar"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-foreground"
+          >
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </motion.button>
+      )}
+
       {/* Main Content - Full width when sidebar collapsed */}
       <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-full' : ''}`}>
         {/* Background decoration */}
