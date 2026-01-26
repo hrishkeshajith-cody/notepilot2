@@ -164,8 +164,8 @@ const StudyApp = () => {
         </motion.button>
       )}
 
-      {/* Main Content - Full width when sidebar collapsed */}
-      <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-full' : ''}`}>
+      {/* Main Content - Full width when sidebar collapsed, with left margin when sidebar visible */}
+      <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'ml-0' : 'ml-80'}`}>
         {/* Background decoration */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl" />
