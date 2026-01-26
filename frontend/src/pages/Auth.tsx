@@ -55,6 +55,12 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const handleGoogleLogin = () => {
+    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    const redirectUrl = window.location.origin + '/app';
+    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  };
+
   const validateForm = () => {
     try {
       if (isLogin) {
