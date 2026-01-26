@@ -7,8 +7,10 @@ Tests all FastAPI endpoints with comprehensive validation
 import requests
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import uuid
+import subprocess
+import time
 
 # Get backend URL from frontend .env
 def get_backend_url():
