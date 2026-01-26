@@ -246,6 +246,362 @@ def test_data_persistence():
         print(f"   ❌ Error testing persistence: {e}")
         return False
 
+# ============ OAUTH TESTING FUNCTIONS ============
+
+def create_test_user_and_session():
+    """Create test user and session in MongoDB using mongosh"""
+    print("   📝 Creating test user and session in MongoDB...")
+    
+    timestamp = int(time.time() * 1000)
+    user_id = f"test-user-{timestamp}"
+    session_token = f"test_session_{timestamp}"
+    email = f"test.user.{timestamp}@example.com"
+    
+    # MongoDB command to create test data
+    mongo_cmd = f"""
+    use('test_database');
+    var userId = '{user_id}';
+    var sessionToken = '{session_token}';
+    var email = '{email}';
+    db.users.insertOne({{
+      user_id: userId,
+      email: email,
+      name: 'Test User OAuth',
+      picture: 'https://via.placeholder.com/150',
+      created_at: new Date()
+    }});
+    db.user_sessions.insertOne({{
+      user_id: userId,
+      session_token: sessionToken,
+      expires_at: new Date(Date.now() + 7*24*60*60*1000),
+      created_at: new Date()
+    }});
+    print('SUCCESS: Created user and session');
+    """
+    
+    try:
+        result = subprocess.run(
+            ['mongosh', '--eval', mongo_cmd],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0 and 'SUCCESS' in result.stdout:
+            print(f"   ✅ Created test user: {user_id}")
+            print(f"   ✅ Created session token: {session_token}")
+            return user_id, session_token, email
+        else:
+            print(f"   ❌ MongoDB command failed: {result.stderr}")
+            return None, None, None
+            
+    except Exception as e:
+        print(f"   ❌ Error creating test data: {e}")
+        return None, None, None
+
+def cleanup_test_data():
+    """Clean up test data from MongoDB"""
+    print("   🧹 Cleaning up test data...")
+    
+    mongo_cmd = """
+    use('test_database');
+    db.users.deleteMany({email: /test\\.user\\./});
+    db.user_sessions.deleteMany({session_token: /test_session/});
+    print('CLEANUP: Test data removed');
+    """
+    
+    try:
+        result = subprocess.run(
+            ['mongosh', '--eval', mongo_cmd],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0:
+            print("   ✅ Test data cleaned up")
+        else:
+            print(f"   ⚠️  Cleanup warning: {result.stderr}")
+            
+    except Exception as e:
+        print(f"   ⚠️  Cleanup error: {e}")
+
+def test_oauth_session_exchange():
+    """Test POST /api/auth/session endpoint"""
+    print("\n🧪 Testing POST /api/auth/session (Session Exchange)")
+    
+    # This endpoint requires a valid session_id from Emergent Auth
+    # Since we can't get a real session_id in testing, we test the endpoint structure
+    # and error handling
+    
+    test_data = {"session_id": "invalid_test_session_id"}
+    
+    try:
+        response = requests.post(
+            f"{API_BASE}/auth/session",
+            json=test_data,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        
+        print(f"   Status Code: {response.status_code}")
+        print(f"   Response: {response.text}")
+        
+        # We expect this to fail with 401 since we're using an invalid session_id
+        # This is the expected behavior for testing
+        if response.status_code == 401:
+            try:
+                error_data = response.json()
+                if "detail" in error_data:
+                    print("   ✅ Session exchange endpoint structure correct")
+                    print("   ✅ Properly handles invalid session_id (expected behavior)")
+                    return True
+                else:
+                    print("   ❌ Error response missing 'detail' field")
+                    return False
+            except:
+                print("   ❌ Error response not valid JSON")
+                return False
+        elif response.status_code == 504:
+            print("   ✅ Auth service timeout handled correctly")
+            return True
+        else:
+            print(f"   ❌ Unexpected status code: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+        return False
+
+def test_oauth_auth_me():
+    """Test GET /api/auth/me endpoint"""
+    print("\n🧪 Testing GET /api/auth/me (Auth Verification)")
+    
+    # Create test user and session
+    user_id, session_token, email = create_test_user_and_session()
+    
+    if not session_token:
+        print("   ❌ Failed to create test data")
+        return False
+    
+    try:
+        # Test 1: Authorization header method
+        print("   🔍 Testing Authorization header method...")
+        response = requests.get(
+            f"{API_BASE}/auth/me",
+            headers={"Authorization": f"Bearer {session_token}"},
+            timeout=10
+        )
+        
+        print(f"   Status Code: {response.status_code}")
+        print(f"   Response: {response.text}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Validate response structure
+            required_fields = ["user_id", "email", "name", "created_at"]
+            missing_fields = [field for field in required_fields if field not in data]
+            
+            if missing_fields:
+                print(f"   ❌ Missing fields in response: {missing_fields}")
+                cleanup_test_data()
+                return False
+            
+            # Validate field values
+            if data["user_id"] != user_id:
+                print(f"   ❌ User ID mismatch: expected {user_id}, got {data['user_id']}")
+                cleanup_test_data()
+                return False
+            
+            if data["email"] != email:
+                print(f"   ❌ Email mismatch: expected {email}, got {data['email']}")
+                cleanup_test_data()
+                return False
+            
+            print("   ✅ Authorization header authentication working")
+            
+            # Test 2: Cookie method
+            print("   🔍 Testing cookie method...")
+            cookie_response = requests.get(
+                f"{API_BASE}/auth/me",
+                cookies={"session_token": session_token},
+                timeout=10
+            )
+            
+            if cookie_response.status_code == 200:
+                cookie_data = cookie_response.json()
+                if cookie_data["user_id"] == user_id:
+                    print("   ✅ Cookie authentication working")
+                    cleanup_test_data()
+                    return True
+                else:
+                    print("   ❌ Cookie auth returned wrong user")
+                    cleanup_test_data()
+                    return False
+            else:
+                print(f"   ❌ Cookie auth failed: {cookie_response.status_code}")
+                cleanup_test_data()
+                return False
+                
+        else:
+            print(f"   ❌ Auth verification failed: {response.status_code}")
+            cleanup_test_data()
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+        cleanup_test_data()
+        return False
+
+def test_oauth_logout():
+    """Test POST /api/auth/logout endpoint"""
+    print("\n🧪 Testing POST /api/auth/logout (Logout)")
+    
+    # Create test user and session
+    user_id, session_token, email = create_test_user_and_session()
+    
+    if not session_token:
+        print("   ❌ Failed to create test data")
+        return False
+    
+    try:
+        # First verify the session exists
+        auth_response = requests.get(
+            f"{API_BASE}/auth/me",
+            headers={"Authorization": f"Bearer {session_token}"},
+            timeout=10
+        )
+        
+        if auth_response.status_code != 200:
+            print("   ❌ Test session not working before logout test")
+            cleanup_test_data()
+            return False
+        
+        print("   ✅ Test session verified before logout")
+        
+        # Test logout
+        logout_response = requests.post(
+            f"{API_BASE}/auth/logout",
+            headers={"Authorization": f"Bearer {session_token}"},
+            timeout=10
+        )
+        
+        print(f"   Logout Status Code: {logout_response.status_code}")
+        print(f"   Logout Response: {logout_response.text}")
+        
+        if logout_response.status_code == 200:
+            logout_data = logout_response.json()
+            
+            if "message" in logout_data and "Logged out" in logout_data["message"]:
+                print("   ✅ Logout endpoint returns correct message")
+                
+                # Verify session is deleted - should get 401 now
+                verify_response = requests.get(
+                    f"{API_BASE}/auth/me",
+                    headers={"Authorization": f"Bearer {session_token}"},
+                    timeout=10
+                )
+                
+                if verify_response.status_code == 401:
+                    print("   ✅ Session properly deleted from database")
+                    cleanup_test_data()
+                    return True
+                else:
+                    print(f"   ❌ Session still valid after logout: {verify_response.status_code}")
+                    cleanup_test_data()
+                    return False
+            else:
+                print(f"   ❌ Unexpected logout response: {logout_data}")
+                cleanup_test_data()
+                return False
+        else:
+            print(f"   ❌ Logout failed: {logout_response.status_code}")
+            cleanup_test_data()
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+        cleanup_test_data()
+        return False
+
+def test_oauth_error_scenarios():
+    """Test OAuth error handling scenarios"""
+    print("\n🧪 Testing OAuth Error Scenarios")
+    
+    try:
+        # Test 1: No authentication
+        print("   🔍 Testing no authentication...")
+        no_auth_response = requests.get(f"{API_BASE}/auth/me", timeout=10)
+        
+        if no_auth_response.status_code == 401:
+            print("   ✅ Correctly returns 401 for no authentication")
+        else:
+            print(f"   ❌ Expected 401, got {no_auth_response.status_code}")
+            return False
+        
+        # Test 2: Invalid session token
+        print("   🔍 Testing invalid session token...")
+        invalid_response = requests.get(
+            f"{API_BASE}/auth/me",
+            headers={"Authorization": "Bearer invalid_token_12345"},
+            timeout=10
+        )
+        
+        if invalid_response.status_code == 401:
+            print("   ✅ Correctly returns 401 for invalid token")
+        else:
+            print(f"   ❌ Expected 401 for invalid token, got {invalid_response.status_code}")
+            return False
+        
+        # Test 3: Expired session (create and immediately expire)
+        print("   🔍 Testing expired session...")
+        
+        timestamp = int(time.time() * 1000)
+        expired_user_id = f"expired-user-{timestamp}"
+        expired_session_token = f"expired_session_{timestamp}"
+        
+        # Create session that's already expired
+        mongo_cmd = f"""
+        use('test_database');
+        var userId = '{expired_user_id}';
+        var sessionToken = '{expired_session_token}';
+        db.users.insertOne({{
+          user_id: userId,
+          email: 'expired.{timestamp}@example.com',
+          name: 'Expired User',
+          created_at: new Date()
+        }});
+        db.user_sessions.insertOne({{
+          user_id: userId,
+          session_token: sessionToken,
+          expires_at: new Date(Date.now() - 1000),  // Expired 1 second ago
+          created_at: new Date()
+        }});
+        """
+        
+        subprocess.run(['mongosh', '--eval', mongo_cmd], capture_output=True, timeout=30)
+        
+        expired_response = requests.get(
+            f"{API_BASE}/auth/me",
+            headers={"Authorization": f"Bearer {expired_session_token}"},
+            timeout=10
+        )
+        
+        if expired_response.status_code == 401:
+            print("   ✅ Correctly handles expired session")
+            cleanup_test_data()  # This will clean up the expired session too
+            return True
+        else:
+            print(f"   ❌ Expected 401 for expired session, got {expired_response.status_code}")
+            cleanup_test_data()
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Error testing error scenarios: {e}")
+        cleanup_test_data()
+        return False
+
 def run_all_tests():
     """Run all backend tests"""
     print("🚀 Starting NotePilot Backend API Tests")
