@@ -135,14 +135,15 @@ const StudyApp = () => {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
-      {/* Floating toggle button when sidebar is hidden */}
+      {/* Floating toggle button when sidebar is hidden - stays visible on scroll */}
       {sidebarCollapsed && (
         <motion.button
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           onClick={() => setSidebarCollapsed(false)}
-          className="fixed top-4 left-4 z-50 p-3 rounded-full bg-card border border-border shadow-lg hover:shadow-xl transition-all hover:scale-105"
+          className="fixed top-6 left-6 z-[100] p-3 rounded-full bg-card border-2 border-border shadow-xl hover:shadow-2xl transition-all hover:scale-110 backdrop-blur-sm"
           aria-label="Open sidebar"
+          style={{ position: 'fixed' }}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
