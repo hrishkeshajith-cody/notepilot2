@@ -262,6 +262,149 @@ async def logout(request: Request, response: Response):
     
     return {"message": "Logged out successfully"}
 
+# ============ CHATBOT ENDPOINTS ============
+
+@api_router.post("/chat", response_model=ChatResponse)
+async def chat_with_notepilot(chat_request: ChatRequest, request: Request):
+    """Enhanced NotePilot chatbot with GPT-5-mini, session memory, and study context awareness"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        # Get OpenAI API key
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        
+        # Build system message with study context
+        system_message = """You are NotePilot AI, an intelligent study assistant helping students learn better. 
+        
+Your capabilities:
+- Explain complex concepts in simple terms
+- Create study strategies and tips
+- Answer questions about study materials
+- Provide mnemonics and memory techniques
+- Break down difficult topics step-by-step
+
+Guidelines:
+- Be encouraging and supportive
+- Use clear, student-friendly language
+- Provide practical examples
+- Keep responses concise but comprehensive
+- If unsure, admit it and guide the student to find answers"""
+
+        # Add study context if available
+        if chat_request.study_context:
+            context_info = f"""
+
+Current Study Context:
+- Subject: {chat_request.study_context.get('subject', 'N/A')}
+- Grade: {chat_request.study_context.get('grade', 'N/A')}
+- Chapter: {chat_request.study_context.get('chapter_title', 'N/A')}
+
+The student is currently working on this material. Use this context to provide relevant, targeted help."""
+            system_message += context_info
+        
+        # Initialize LlmChat with session for memory
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=chat_request.session_id,
+            system_message=system_message
+        ).with_model("openai", "gpt-5-mini")
+        
+        # Get chat history from database
+        history_doc = await db.chat_history.find_one(
+            {"session_id": chat_request.session_id},
+            {"_id": 0}
+        )
+        
+        # Create user message
+        user_message = UserMessage(text=chat_request.message)
+        
+        # Send message and get response
+        response_text = await chat.send_message(user_message)
+        
+        # Generate suggested questions based on context
+        suggested_questions = []
+        if chat_request.study_context:
+            subject = chat_request.study_context.get('subject', '')
+            chapter = chat_request.study_context.get('chapter_title', '')
+            
+            # Context-aware suggestions
+            suggested_questions = [
+                f"Can you explain the key concepts in {chapter}?",
+                f"What are some practice questions for {subject}?",
+                "Can you create a study plan for this topic?",
+                "What are common mistakes students make here?"
+            ]
+        else:
+            # General suggestions
+            suggested_questions = [
+                "How can I study more effectively?",
+                "Can you help me create flashcards?",
+                "What's a good way to remember this?",
+                "Can you quiz me on this topic?"
+            ]
+        
+        # Save to database
+        now = datetime.now(timezone.utc)
+        new_messages = [
+            {"role": "user", "content": chat_request.message, "timestamp": now},
+            {"role": "assistant", "content": response_text, "timestamp": now}
+        ]
+        
+        if history_doc:
+            # Update existing history
+            await db.chat_history.update_one(
+                {"session_id": chat_request.session_id},
+                {
+                    "$push": {"messages": {"$each": new_messages}},
+                    "$set": {"updated_at": now}
+                }
+            )
+        else:
+            # Create new history
+            await db.chat_history.insert_one({
+                "session_id": chat_request.session_id,
+                "messages": new_messages,
+                "created_at": now,
+                "updated_at": now
+            })
+        
+        return ChatResponse(
+            response=response_text,
+            suggested_questions=suggested_questions[:3],  # Return top 3
+            session_id=chat_request.session_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+
+
+@api_router.get("/chat/history/{session_id}")
+async def get_chat_history(session_id: str):
+    """Get chat history for a session"""
+    history_doc = await db.chat_history.find_one(
+        {"session_id": session_id},
+        {"_id": 0}
+    )
+    
+    if not history_doc:
+        return {"session_id": session_id, "messages": []}
+    
+    return history_doc
+
+
+@api_router.delete("/chat/history/{session_id}")
+async def clear_chat_history(session_id: str):
+    """Clear chat history for a session"""
+    result = await db.chat_history.delete_one({"session_id": session_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {"message": "Chat history cleared", "session_id": session_id}
+
 # Include the router in the main app
 app.include_router(api_router)
 
