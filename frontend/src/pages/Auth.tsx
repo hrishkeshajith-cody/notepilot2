@@ -151,7 +151,7 @@ const Auth = () => {
           {/* Logo */}
           <Link to="/" className="inline-flex items-center gap-3 mb-8">
             <div className="p-2 rounded-lg gradient-primary">
-              <BookOpen className="w-5 h-5 text-primary-foreground" />
+              <img src="/logo.png" alt="NotePilot" className="w-5 h-5 object-contain" />
             </div>
             <span className="font-display font-bold text-xl text-foreground">Notepilot</span>
           </Link>
