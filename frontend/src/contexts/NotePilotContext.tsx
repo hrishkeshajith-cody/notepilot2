@@ -52,12 +52,13 @@ export const NotePilotProvider = ({ children }: { children: ReactNode }) => {
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
 
   const addMessage = (message: Omit<Message, "id">) => {
-    const newMessage = { ...message, id: crypto.randomUUID() };
+    const newMessage = { ...message, id: crypto.randomUUID(), timestamp: new Date() };
     setMessages((prev) => [...prev, newMessage]);
   };
 
   const clearMessages = () => {
     setMessages([]);
+    setSuggestedQuestions([]);
   };
 
   const askAbout = (content: string, type: string) => {
@@ -77,6 +78,11 @@ export const NotePilotProvider = ({ children }: { children: ReactNode }) => {
         isLoading,
         setIsLoading,
         askAbout,
+        studyContext,
+        setStudyContext,
+        sessionId,
+        suggestedQuestions,
+        setSuggestedQuestions,
       }}
     >
       {children}
