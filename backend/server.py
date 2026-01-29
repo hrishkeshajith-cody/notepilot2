@@ -61,6 +61,28 @@ class UserSession(BaseModel):
     expires_at: datetime
     created_at: datetime
 
+# Chatbot Models
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str
+    study_context: Optional[dict] = None  # Current study pack context
+
+class ChatResponse(BaseModel):
+    response: str
+    suggested_questions: List[str]
+    session_id: str
+
+class ChatHistory(BaseModel):
+    session_id: str
+    messages: List[ChatMessage]
+    created_at: datetime
+    updated_at: datetime
+
 # Add your routes to the router instead of directly to app
 @api_router.get("/")
 async def root():
