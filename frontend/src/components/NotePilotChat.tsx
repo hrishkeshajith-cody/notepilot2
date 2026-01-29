@@ -354,31 +354,72 @@ export const NotePilotChat = () => {
 
             {/* Input */}
             <div className="p-4 border-t border-border bg-secondary/30">
+              {/* Real-time voice transcription display */}
+              {isListening && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-3 p-3 bg-primary/10 border border-primary/30 rounded-lg"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex gap-1">
+                      <span className="w-1 h-4 bg-primary rounded-full animate-pulse" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1 h-5 bg-primary rounded-full animate-pulse" style={{ animationDelay: "75ms" }} />
+                      <span className="w-1 h-6 bg-primary rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1 h-5 bg-primary rounded-full animate-pulse" style={{ animationDelay: "225ms" }} />
+                      <span className="w-1 h-4 bg-primary rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+                    </div>
+                    <span className="text-xs font-medium text-primary">Listening...</span>
+                  </div>
+                  {(input || interimTranscript) && (
+                    <p className="text-sm text-foreground">
+                      <span className="font-medium">{input}</span>
+                      {interimTranscript && (
+                        <span className="text-muted-foreground italic"> {interimTranscript}</span>
+                      )}
+                    </p>
+                  )}
+                  {!input && !interimTranscript && (
+                    <p className="text-xs text-muted-foreground italic">Speak now, I'm listening...</p>
+                  )}
+                </motion.div>
+              )}
+              
               <div className="flex gap-2">
                 <Button
                   onClick={toggleVoiceInput}
                   disabled={isLoading}
                   size="icon"
                   variant={isListening ? "default" : "outline"}
-                  className={isListening ? "gradient-primary text-primary-foreground animate-pulse" : ""}
-                  title="Voice input"
+                  className={`shrink-0 transition-all ${isListening ? "gradient-primary text-primary-foreground scale-110 shadow-lg" : "hover:scale-105"}`}
+                  title={isListening ? "Stop listening" : "Voice input"}
                 >
-                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  {isListening ? (
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      <Mic className="w-4 h-4" />
+                    </motion.div>
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
                 </Button>
                 <Input
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask me anything..."
-                  disabled={isLoading}
-                  className="flex-1 bg-background"
+                  placeholder={isListening ? "Listening..." : "Ask me anything..."}
+                  disabled={isLoading || isListening}
+                  className={`flex-1 bg-background transition-all ${isListening ? "border-primary/50" : ""}`}
                 />
                 <Button
                   onClick={handleSend}
                   disabled={!input.trim() || isLoading}
                   size="icon"
-                  className="gradient-primary text-primary-foreground shrink-0"
+                  className="gradient-primary text-primary-foreground shrink-0 hover:scale-105 transition-transform"
                 >
                   <Send className="w-4 h-4" />
                 </Button>
