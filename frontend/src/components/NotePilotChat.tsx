@@ -229,9 +229,16 @@ export const NotePilotChat = () => {
                     <MessageCircle className="w-8 h-8 text-primary" />
                   </div>
                   <h4 className="font-semibold text-foreground mb-2">Hey there! 👋</h4>
-                  <p className="text-sm text-muted-foreground">
-                    I'm NotePilot AI, your friendly study assistant. Ask me anything or click the ✨ button on any content to get a detailed explanation!
+                  <p className="text-sm text-muted-foreground mb-4">
+                    I'm NotePilot AI powered by GPT-5-mini. I have memory of our conversation and can help with your studies!
                   </p>
+                  {studyContext && (
+                    <div className="mt-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                      <p className="text-xs text-primary font-medium">
+                        📚 I can see you're studying: {studyContext.chapter_title}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -272,9 +279,40 @@ export const NotePilotChat = () => {
               )}
             </ScrollArea>
 
+            {/* Suggested Questions */}
+            {suggestedQuestions.length > 0 && !isLoading && (
+              <div className="px-4 py-2 border-t border-border bg-secondary/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <Lightbulb className="w-3 h-3 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">Suggested questions:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {suggestedQuestions.map((question, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSuggestedQuestion(question)}
+                      className="text-xs px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-full transition-colors"
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Input */}
             <div className="p-4 border-t border-border bg-secondary/30">
               <div className="flex gap-2">
+                <Button
+                  onClick={toggleVoiceInput}
+                  disabled={isLoading}
+                  size="icon"
+                  variant={isListening ? "default" : "outline"}
+                  className={isListening ? "gradient-primary text-primary-foreground animate-pulse" : ""}
+                  title="Voice input"
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </Button>
                 <Input
                   ref={inputRef}
                   value={input}
