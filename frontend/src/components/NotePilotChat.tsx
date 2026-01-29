@@ -44,40 +44,74 @@ export const NotePilotChat = () => {
 
   // Initialize Web Speech API for voice input
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'en-US';
+      
+      if (SpeechRecognition) {
+        try {
+          recognitionRef.current = new SpeechRecognition();
+          recognitionRef.current.continuous = false;
+          recognitionRef.current.interimResults = false;
+          recognitionRef.current.lang = 'en-US';
+          recognitionRef.current.maxAlternatives = 1;
 
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
-        setIsListening(false);
-      };
+          recognitionRef.current.onstart = () => {
+            console.log('Voice recognition started');
+            setIsListening(true);
+          };
 
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        toast({
-          title: "Voice input error",
-          description: "Could not capture voice. Please try again.",
-          variant: "destructive",
-        });
-      };
+          recognitionRef.current.onresult = (event: any) => {
+            console.log('Voice recognition result:', event);
+            const transcript = event.results[0][0].transcript;
+            setInput(transcript);
+            toast({
+              title: "Voice captured!",
+              description: `Heard: "${transcript}"`,
+            });
+          };
 
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
+          recognitionRef.current.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+            setIsListening(false);
+            
+            let errorMessage = "Could not capture voice. Please try again.";
+            if (event.error === 'not-allowed') {
+              errorMessage = "Microphone permission denied. Please allow microphone access.";
+            } else if (event.error === 'no-speech') {
+              errorMessage = "No speech detected. Please try again.";
+            } else if (event.error === 'network') {
+              errorMessage = "Network error. Please check your connection.";
+            }
+            
+            toast({
+              title: "Voice input error",
+              description: errorMessage,
+              variant: "destructive",
+            });
+          };
+
+          recognitionRef.current.onend = () => {
+            console.log('Voice recognition ended');
+            setIsListening(false);
+          };
+        } catch (err) {
+          console.error('Failed to initialize speech recognition:', err);
+        }
+      } else {
+        console.warn('Speech recognition not supported in this browser');
+      }
     }
   }, [toast]);
 
   // Handle auto-response when a new user message is added via askAbout
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === "user" && !isLoading) {
-      generateResponse(lastMessage.content);
+    if (lastMessage?.role === "user" && !isLoading && messages.length > 0) {
+      // Check if this message was already processed
+      const hasResponse = messages[messages.length - 1]?.role === "assistant";
+      if (!hasResponse) {
+        generateResponse(lastMessage.content);
+      }
     }
   }, [messages]);
 
@@ -147,18 +181,34 @@ export const NotePilotChat = () => {
     if (!recognitionRef.current) {
       toast({
         title: "Voice input not supported",
-        description: "Your browser doesn't support voice input.",
+        description: "Your browser doesn't support voice input. Please use Chrome, Edge, or Safari.",
         variant: "destructive",
       });
       return;
     }
 
     if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.error('Error stopping recognition:', err);
+        setIsListening(false);
+      }
     } else {
-      recognitionRef.current.start();
-      setIsListening(true);
+      try {
+        recognitionRef.current.start();
+        toast({
+          title: "Listening...",
+          description: "Speak now. I'm listening!",
+        });
+      } catch (err) {
+        console.error('Error starting recognition:', err);
+        toast({
+          title: "Could not start voice input",
+          description: "Please try again or check microphone permissions.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
