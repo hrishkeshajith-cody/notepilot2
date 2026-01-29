@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { InputForm } from "@/components/InputForm";
@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { InputFormData, StudyPack } from "@/types/studyPack";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useNotePilot } from "@/contexts/NotePilotContext";
 import { supabase } from "@/integrations/supabase/client";
 
 const StudyApp = () => {
@@ -15,6 +16,22 @@ const StudyApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Auto-hide sidebar on initial load
   const { user } = useAuth();
   const { toast } = useToast();
+  const { setStudyContext } = useNotePilot();
+
+  // Update study context when study pack changes
+  useEffect(() => {
+    if (studyPack) {
+      setStudyContext({
+        subject: studyPack.meta.subject,
+        grade: studyPack.meta.grade,
+        chapter_title: studyPack.meta.chapter_title,
+        summary: studyPack.summary,
+        key_terms: studyPack.key_terms,
+      });
+    } else {
+      setStudyContext(null);
+    }
+  }, [studyPack, setStudyContext]);
 
   const handleGenerate = async (data: InputFormData) => {
     setIsLoading(true);
