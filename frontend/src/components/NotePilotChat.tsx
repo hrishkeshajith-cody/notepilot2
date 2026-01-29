@@ -23,6 +23,7 @@ export const NotePilotChat = () => {
   } = useNotePilot();
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -42,7 +43,7 @@ export const NotePilotChat = () => {
     }
   }, [isOpen]);
 
-  // Initialize Web Speech API for voice input
+  // Initialize Web Speech API for voice input with enhanced settings
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -50,65 +51,75 @@ export const NotePilotChat = () => {
       if (SpeechRecognition) {
         try {
           recognitionRef.current = new SpeechRecognition();
-          recognitionRef.current.continuous = false;
-          recognitionRef.current.interimResults = false;
+          recognitionRef.current.continuous = true; // Keep listening
+          recognitionRef.current.interimResults = true; // Show real-time results
           recognitionRef.current.lang = 'en-US';
-          recognitionRef.current.maxAlternatives = 1;
+          recognitionRef.current.maxAlternatives = 3; // Get multiple alternatives for better accuracy
 
           recognitionRef.current.onstart = () => {
             console.log('Voice recognition started');
             setIsListening(true);
+            setInterimTranscript("");
           };
 
           recognitionRef.current.onresult = (event: any) => {
-            console.log('Voice recognition result:', event);
-            const transcript = event.results[0][0].transcript;
-            setInput(transcript);
-            toast({
-              title: "Voice captured!",
-              description: `Heard: "${transcript}"`,
-            });
+            let interim = '';
+            let final = '';
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                final += transcript + ' ';
+              } else {
+                interim += transcript;
+              }
+            }
+
+            // Update interim transcript for real-time display
+            setInterimTranscript(interim);
+
+            // If we have final results, add to input
+            if (final) {
+              setInput(prev => (prev + ' ' + final).trim());
+              setInterimTranscript("");
+            }
           };
 
           recognitionRef.current.onerror = (event: any) => {
             console.error('Speech recognition error:', event.error);
-            setIsListening(false);
-            
-            let errorMessage = "Could not capture voice. Please try again.";
-            if (event.error === 'not-allowed') {
-              errorMessage = "Microphone permission denied. Please allow microphone access.";
-            } else if (event.error === 'no-speech') {
-              errorMessage = "No speech detected. Please try again.";
-            } else if (event.error === 'network') {
-              errorMessage = "Network error. Please check your connection.";
+            if (event.error !== 'no-speech' && event.error !== 'aborted') {
+              setIsListening(false);
+              setInterimTranscript("");
             }
-            
-            toast({
-              title: "Voice input error",
-              description: errorMessage,
-              variant: "destructive",
-            });
           };
 
           recognitionRef.current.onend = () => {
             console.log('Voice recognition ended');
-            setIsListening(false);
+            if (isListening) {
+              // Auto-restart if still in listening mode (unless user stopped it)
+              try {
+                recognitionRef.current.start();
+              } catch (err) {
+                setIsListening(false);
+                setInterimTranscript("");
+              }
+            } else {
+              setInterimTranscript("");
+            }
           };
         } catch (err) {
           console.error('Failed to initialize speech recognition:', err);
         }
-      } else {
-        console.warn('Speech recognition not supported in this browser');
       }
     }
-  }, [toast]);
+  }, [isListening]);
 
   // Handle auto-response when a new user message is added via askAbout
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === "user" && !isLoading && messages.length > 0) {
       // Check if this message was already processed
-      const hasResponse = messages[messages.length - 1]?.role === "assistant";
+      const hasResponse = messages.length > 1 && messages[messages.length - 2]?.role === "user";
       if (!hasResponse) {
         generateResponse(lastMessage.content);
       }
@@ -179,35 +190,26 @@ export const NotePilotChat = () => {
 
   const toggleVoiceInput = () => {
     if (!recognitionRef.current) {
-      toast({
-        title: "Voice input not supported",
-        description: "Your browser doesn't support voice input. Please use Chrome, Edge, or Safari.",
-        variant: "destructive",
-      });
+      // Silently fail - browser doesn't support it
       return;
     }
 
     if (isListening) {
       try {
         recognitionRef.current.stop();
+        setIsListening(false);
+        setInterimTranscript("");
       } catch (err) {
         console.error('Error stopping recognition:', err);
         setIsListening(false);
+        setInterimTranscript("");
       }
     } else {
       try {
+        setInput(""); // Clear input when starting voice
         recognitionRef.current.start();
-        toast({
-          title: "Listening...",
-          description: "Speak now. I'm listening!",
-        });
       } catch (err) {
         console.error('Error starting recognition:', err);
-        toast({
-          title: "Could not start voice input",
-          description: "Please try again or check microphone permissions.",
-          variant: "destructive",
-        });
       }
     }
   };
