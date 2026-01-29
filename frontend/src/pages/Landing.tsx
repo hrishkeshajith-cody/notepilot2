@@ -66,7 +66,7 @@ const Landing = () => {
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg gradient-primary">
-                <BookOpen className="w-5 h-5 text-primary-foreground" />
+                <img src="/logo.png" alt="NotePilot" className="w-5 h-5 object-contain" />
               </div>
               <span className="font-display font-bold text-xl text-foreground">Notepilot</span>
             </div>
@@ -248,7 +248,7 @@ const Landing = () => {
                       animate={{ y: [0, -10, 0] }}
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                     >
-                      <BookOpen className="w-24 h-24 mx-auto mb-6" />
+                      <img src="/logo.png" alt="NotePilot" className="w-24 h-24 mx-auto mb-6 object-contain" />
                     </motion.div>
                     <p className="text-2xl font-display font-bold">
                       Study Smarter
@@ -294,7 +294,7 @@ const Landing = () => {
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg gradient-primary">
-                  <BookOpen className="w-4 h-4 text-primary-foreground" />
+                  <img src="/logo.png" alt="NotePilot" className="w-4 h-4 object-contain" />
                 </div>
                 <span className="font-display font-semibold text-foreground">Notepilot</span>
               </div>
