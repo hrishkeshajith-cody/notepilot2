@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, Sparkles, Trash2 } from "lucide-react";
+import { MessageCircle, X, Send, Sparkles, Trash2, Mic, MicOff, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNotePilot } from "@/contexts/NotePilotContext";
-import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export const NotePilotChat = () => {
   const {
@@ -16,10 +16,17 @@ export const NotePilotChat = () => {
     clearMessages,
     isLoading,
     setIsLoading,
+    studyContext,
+    sessionId,
+    suggestedQuestions,
+    setSuggestedQuestions,
   } = useNotePilot();
   const [input, setInput] = useState("");
+  const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const { toast } = useToast();
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
