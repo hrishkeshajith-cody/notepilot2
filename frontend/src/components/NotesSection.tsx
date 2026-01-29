@@ -193,8 +193,19 @@ export const NotesSection = ({ notes }: NotesSectionProps) => {
         transition={{ delay: 0.3 }}
         className="flex items-center justify-center gap-2 pt-4 text-sm text-muted-foreground"
       >
-        <ScrollText className="w-4 h-4" />
-        <span>{notes.length} sections covering the complete chapter</span>
+        {viewMode === 'chapter' ? (
+          <>
+            <ScrollText className="w-4 h-4" />
+            <span>{notes.length} sections covering the complete chapter</span>
+          </>
+        ) : (
+          <>
+            <List className="w-4 h-4" />
+            <span>
+              {notes.reduce((total, note) => total + convertToDetailedPoints(note.content).length, 0)} detailed points across {notes.length} sections
+            </span>
+          </>
+        )}
       </motion.div>
     </motion.div>
   );
