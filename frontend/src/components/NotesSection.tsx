@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { ScrollText } from "lucide-react";
+import { ScrollText, List, FileText } from "lucide-react";
 import { NoteSection } from "@/types/studyPack";
+import { useState } from "react";
 import {
   Accordion,
   AccordionContent,
@@ -8,12 +9,32 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { ExplainButton } from "./ExplainButton";
+import { Button } from "@/components/ui/button";
 
 interface NotesSectionProps {
   notes: NoteSection[];
 }
 
+// Convert paragraph notes to detailed bullet points
+const convertToDetailedPoints = (content: string): string[] => {
+  // Split by double newlines (paragraphs) or periods followed by capital letters
+  const sentences = content
+    .split(/\.\s+(?=[A-Z])|[\n]{2,}/g)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  
+  return sentences.map(sentence => {
+    // Add period if missing
+    if (!sentence.endsWith('.') && !sentence.endsWith('!') && !sentence.endsWith('?')) {
+      return sentence + '.';
+    }
+    return sentence;
+  });
+};
+
 export const NotesSection = ({ notes }: NotesSectionProps) => {
+  const [viewMode, setViewMode] = useState<'chapter' | 'points'>('chapter');
+
   if (!notes || notes.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -29,16 +50,42 @@ export const NotesSection = ({ notes }: NotesSectionProps) => {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-4"
     >
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2.5 rounded-lg bg-primary/10">
-          <ScrollText className="w-5 h-5 text-primary" />
+      {/* Header with Toggle */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-primary/10">
+            <ScrollText className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Detailed Notes</h2>
+            <p className="text-sm text-muted-foreground">
+              {viewMode === 'chapter' 
+                ? 'Comprehensive explanations covering the entire chapter'
+                : 'Detailed points with comprehensive information'}
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">Detailed Notes</h2>
-          <p className="text-sm text-muted-foreground">
-            Comprehensive explanations covering the entire chapter
-          </p>
+        
+        {/* View Mode Toggle */}
+        <div className="flex items-center gap-2 bg-secondary/50 rounded-lg p-1 border border-border">
+          <Button
+            onClick={() => setViewMode('chapter')}
+            variant={viewMode === 'chapter' ? 'default' : 'ghost'}
+            size="sm"
+            className={`gap-2 transition-all ${viewMode === 'chapter' ? 'gradient-primary text-primary-foreground shadow-sm' : 'hover:bg-secondary'}`}
+          >
+            <FileText className="w-4 h-4" />
+            <span className="hidden sm:inline">Chapter</span>
+          </Button>
+          <Button
+            onClick={() => setViewMode('points')}
+            variant={viewMode === 'points' ? 'default' : 'ghost'}
+            size="sm"
+            className={`gap-2 transition-all ${viewMode === 'points' ? 'gradient-primary text-primary-foreground shadow-sm' : 'hover:bg-secondary'}`}
+          >
+            <List className="w-4 h-4" />
+            <span className="hidden sm:inline">Points</span>
+          </Button>
         </div>
       </div>
 
