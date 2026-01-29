@@ -42,6 +42,37 @@ export const NotePilotChat = () => {
     }
   }, [isOpen]);
 
+  // Initialize Web Speech API for voice input
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        toast({
+          title: "Voice input error",
+          description: "Could not capture voice. Please try again.",
+          variant: "destructive",
+        });
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, [toast]);
+
   // Handle auto-response when a new user message is added via askAbout
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
@@ -53,21 +84,46 @@ export const NotePilotChat = () => {
   const generateResponse = async (userMessage: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("notepilot-chat", {
-        body: { message: userMessage },
+      const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || import.meta.env.VITE_BACKEND_URL || "";
+      
+      const response = await fetch(`${backendUrl}/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          message: userMessage,
+          session_id: sessionId,
+          study_context: studyContext,
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error("Chat API error");
+      }
+
+      const data = await response.json();
 
       addMessage({
         role: "assistant",
         content: data.response || "I couldn't generate a response. Please try again.",
       });
+
+      // Update suggested questions
+      if (data.suggested_questions && data.suggested_questions.length > 0) {
+        setSuggestedQuestions(data.suggested_questions);
+      }
     } catch (error) {
       console.error("NotePilot AI error:", error);
       addMessage({
         role: "assistant",
         content: "Sorry, I encountered an error. Please try again!",
+      });
+      toast({
+        title: "Chat error",
+        description: "Failed to get response from AI. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -85,6 +141,30 @@ export const NotePilotChat = () => {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const toggleVoiceInput = () => {
+    if (!recognitionRef.current) {
+      toast({
+        title: "Voice input not supported",
+        description: "Your browser doesn't support voice input.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
+
+  const handleSuggestedQuestion = (question: string) => {
+    setInput(question);
+    inputRef.current?.focus();
   };
 
   return (
