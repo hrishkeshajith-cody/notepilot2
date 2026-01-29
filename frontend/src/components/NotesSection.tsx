@@ -89,42 +89,102 @@ export const NotesSection = ({ notes }: NotesSectionProps) => {
         </div>
       </div>
 
-      {/* Notes Accordion */}
-      <Accordion type="multiple" defaultValue={notes.map((_, i) => `note-${i}`)} className="space-y-3">
-        {notes.map((note, index) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-          >
-            <AccordionItem
-              value={`note-${index}`}
-              className="bg-card border border-border rounded-xl overflow-hidden"
+      {/* Notes Content */}
+      {viewMode === 'chapter' ? (
+        /* Chapter View - Original Accordion */
+        <Accordion type="multiple" defaultValue={notes.map((_, i) => `note-${i}`)} className="space-y-3">
+          {notes.map((note, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
             >
-              <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-secondary/50 transition-colors">
-                <div className="flex items-center gap-3 text-left flex-1">
-                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-semibold shrink-0">
-                    {index + 1}
-                  </span>
-                  <span className="font-semibold text-foreground">{note.title}</span>
-                  <ExplainButton
-                    content={`${note.title}: ${note.content.substring(0, 200)}`}
-                    type="note"
-                  />
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="px-5 pb-5">
-                <div className="pl-10 prose prose-sm dark:prose-invert max-w-none">
-                  <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                    {note.content}
+              <AccordionItem
+                value={`note-${index}`}
+                className="bg-card border border-border rounded-xl overflow-hidden"
+              >
+                <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-secondary/50 transition-colors">
+                  <div className="flex items-center gap-3 text-left flex-1">
+                    <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-semibold shrink-0">
+                      {index + 1}
+                    </span>
+                    <span className="font-semibold text-foreground">{note.title}</span>
+                    <ExplainButton
+                      content={`${note.title}: ${note.content.substring(0, 200)}`}
+                      type="note"
+                    />
                   </div>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </motion.div>
-        ))}
-      </Accordion>
+                </AccordionTrigger>
+                <AccordionContent className="px-5 pb-5">
+                  <div className="pl-10 prose prose-sm dark:prose-invert max-w-none">
+                    <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                      {note.content}
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </motion.div>
+          ))}
+        </Accordion>
+      ) : (
+        /* Points View - Detailed Bullet Points */
+        <Accordion type="multiple" defaultValue={notes.map((_, i) => `point-${i}`)} className="space-y-3">
+          {notes.map((note, index) => {
+            const detailedPoints = convertToDetailedPoints(note.content);
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <AccordionItem
+                  value={`point-${index}`}
+                  className="bg-card border border-border rounded-xl overflow-hidden"
+                >
+                  <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-secondary/50 transition-colors">
+                    <div className="flex items-center gap-3 text-left flex-1">
+                      <span className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-sm font-semibold shrink-0">
+                        {index + 1}
+                      </span>
+                      <span className="font-semibold text-foreground">{note.title}</span>
+                      <div className="ml-auto mr-4 flex items-center gap-1.5 text-xs text-muted-foreground bg-secondary/50 px-2.5 py-1 rounded-full">
+                        <List className="w-3 h-3" />
+                        <span>{detailedPoints.length} points</span>
+                      </div>
+                      <ExplainButton
+                        content={`${note.title}: ${note.content.substring(0, 200)}`}
+                        type="note"
+                      />
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-5 pb-5">
+                    <div className="pl-10 space-y-3">
+                      {detailedPoints.map((point, pointIndex) => (
+                        <motion.div
+                          key={pointIndex}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: pointIndex * 0.03 }}
+                          className="flex gap-3 group"
+                        >
+                          <div className="flex items-start pt-1">
+                            <div className="w-2 h-2 rounded-full bg-primary/60 group-hover:bg-primary transition-colors" />
+                          </div>
+                          <p className="text-foreground/90 leading-relaxed flex-1 text-sm">
+                            {point}
+                          </p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </motion.div>
+            );
+          })}
+        </Accordion>
+      )}
 
       {/* Footer tip */}
       <motion.div
