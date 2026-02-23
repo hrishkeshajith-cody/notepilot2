@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, FileText, Layers, Brain, ArrowLeft, ScrollText, HelpCircle } from "lucide-react";
+import { BookOpen, FileText, Layers, Brain, ArrowLeft, ScrollText, HelpCircle, Network } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { FlashcardsSection } from "./FlashcardsSection";
 import { QuizSection } from "./QuizSection";
 import { NotesSection } from "./NotesSection";
 import { ImportantQuestionsSection } from "./ImportantQuestionsSection";
+import { MindMapSection } from "./MindMapSection";
 import { StudyPack } from "@/types/studyPack";
 
 interface StudyPackDisplayProps {
