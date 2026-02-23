@@ -99,16 +99,29 @@ export const ImportantQuestionsSection = ({ questions }: ImportantQuestionsSecti
       className="space-y-6"
     >
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2.5 rounded-lg bg-primary/10">
-          <HelpCircle className="w-5 h-5 text-primary" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-primary/10">
+            <HelpCircle className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Important Questions</h2>
+            <p className="text-sm text-muted-foreground">
+              Practice questions organized by marks
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">Important Questions</h2>
-          <p className="text-sm text-muted-foreground">
-            Practice questions organized by marks
-          </p>
-        </div>
+        
+        {/* Download Button */}
+        <Button
+          onClick={() => downloadQuestions(questions)}
+          variant="outline"
+          size="sm"
+          className="gap-2"
+        >
+          <Download className="w-4 h-4" />
+          <span className="hidden sm:inline">Download</span>
+        </Button>
       </div>
 
       {/* Category Tabs */}
