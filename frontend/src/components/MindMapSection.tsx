@@ -25,12 +25,12 @@ const generateMindMapData = (studyPack: StudyPack) => {
   const edges: Edge[] = [];
   let nodeId = 0;
 
-  // Central node - Chapter Title
+  // Central node - Chapter Title (center of canvas)
   nodes.push({
     id: `${nodeId}`,
     type: "input",
     data: { label: studyPack.meta.chapter_title },
-    position: { x: 400, y: 50 },
+    position: { x: 600, y: 300 },
     style: {
       background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
       color: "white",
@@ -47,12 +47,12 @@ const generateMindMapData = (studyPack: StudyPack) => {
   const centralNodeId = nodeId;
   nodeId++;
 
-  // Summary Branch
+  // Summary Branch (TOP-LEFT)
   if (studyPack.summary) {
     nodes.push({
       id: `${nodeId}`,
-      data: { label: "Summary" },
-      position: { x: 150, y: 200 },
+      data: { label: "📝 Summary" },
+      position: { x: 250, y: 100 },
       style: {
         background: "#10b981",
         color: "white",
@@ -61,6 +61,7 @@ const generateMindMapData = (studyPack: StudyPack) => {
         padding: "12px 20px",
         fontWeight: "600",
         boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+        minWidth: "120px",
       },
     });
     edges.push({
@@ -77,8 +78,8 @@ const generateMindMapData = (studyPack: StudyPack) => {
     if (studyPack.summary.tl_dr) {
       nodes.push({
         id: `${nodeId}`,
-        data: { label: `TL;DR: ${studyPack.summary.tl_dr.substring(0, 50)}...` },
-        position: { x: 50, y: 320 },
+        data: { label: `💡 ${studyPack.summary.tl_dr.substring(0, 60)}...` },
+        position: { x: 50, y: 0 },
         style: {
           background: "#d1fae5",
           color: "#065f46",
@@ -86,7 +87,7 @@ const generateMindMapData = (studyPack: StudyPack) => {
           borderRadius: "8px",
           padding: "10px 16px",
           fontSize: "12px",
-          maxWidth: "200px",
+          maxWidth: "250px",
         },
       });
       edges.push({
@@ -103,8 +104,8 @@ const generateMindMapData = (studyPack: StudyPack) => {
       studyPack.summary.important_points.slice(0, 3).forEach((point, idx) => {
         nodes.push({
           id: `${nodeId}`,
-          data: { label: `• ${point.substring(0, 40)}...` },
-          position: { x: 150 + idx * 120, y: 320 },
+          data: { label: `✓ ${point.substring(0, 50)}...` },
+          position: { x: 50 + idx * 180, y: 200 },
           style: {
             background: "#d1fae5",
             color: "#065f46",
@@ -112,7 +113,7 @@ const generateMindMapData = (studyPack: StudyPack) => {
             borderRadius: "8px",
             padding: "8px 12px",
             fontSize: "11px",
-            maxWidth: "150px",
+            maxWidth: "170px",
           },
         });
         edges.push({
@@ -126,12 +127,12 @@ const generateMindMapData = (studyPack: StudyPack) => {
     }
   }
 
-  // Key Terms Branch
+  // Key Terms Branch (TOP-RIGHT)
   if (studyPack.key_terms && studyPack.key_terms.length > 0) {
     nodes.push({
       id: `${nodeId}`,
-      data: { label: "Key Terms" },
-      position: { x: 650, y: 200 },
+      data: { label: "📚 Key Terms" },
+      position: { x: 950, y: 100 },
       style: {
         background: "#f59e0b",
         color: "white",
@@ -140,6 +141,7 @@ const generateMindMapData = (studyPack: StudyPack) => {
         padding: "12px 20px",
         fontWeight: "600",
         boxShadow: "0 4px 12px rgba(245, 158, 11, 0.3)",
+        minWidth: "120px",
       },
     });
     edges.push({
@@ -152,12 +154,14 @@ const generateMindMapData = (studyPack: StudyPack) => {
     const keyTermsNodeId = nodeId;
     nodeId++;
 
-    // Add key term nodes
-    studyPack.key_terms.slice(0, 5).forEach((term, idx) => {
+    // Add key term nodes in grid
+    studyPack.key_terms.slice(0, 6).forEach((term, idx) => {
+      const col = idx % 3;
+      const row = Math.floor(idx / 3);
       nodes.push({
         id: `${nodeId}`,
-        data: { label: term.term },
-        position: { x: 550 + (idx % 3) * 140, y: 320 + Math.floor(idx / 3) * 100 },
+        data: { label: `📖 ${term.term}` },
+        position: { x: 850 + col * 180, y: 0 + row * 120 },
         style: {
           background: "#fef3c7",
           color: "#92400e",
@@ -166,7 +170,7 @@ const generateMindMapData = (studyPack: StudyPack) => {
           padding: "8px 12px",
           fontSize: "12px",
           fontWeight: "500",
-          maxWidth: "130px",
+          maxWidth: "160px",
         },
       });
       edges.push({
@@ -179,12 +183,12 @@ const generateMindMapData = (studyPack: StudyPack) => {
     });
   }
 
-  // Notes Branch
+  // Notes Branch (BOTTOM)
   if (studyPack.notes && studyPack.notes.length > 0) {
     nodes.push({
       id: `${nodeId}`,
-      data: { label: "Notes" },
-      position: { x: 400, y: 450 },
+      data: { label: "📔 Detailed Notes" },
+      position: { x: 580, y: 500 },
       style: {
         background: "#8b5cf6",
         color: "white",
@@ -193,6 +197,7 @@ const generateMindMapData = (studyPack: StudyPack) => {
         padding: "12px 20px",
         fontWeight: "600",
         boxShadow: "0 4px 12px rgba(139, 92, 246, 0.3)",
+        minWidth: "150px",
       },
     });
     edges.push({
@@ -205,12 +210,12 @@ const generateMindMapData = (studyPack: StudyPack) => {
     const notesNodeId = nodeId;
     nodeId++;
 
-    // Add note section nodes
-    studyPack.notes.slice(0, 4).forEach((note, idx) => {
+    // Add note section nodes spread horizontally
+    studyPack.notes.slice(0, 5).forEach((note, idx) => {
       nodes.push({
         id: `${nodeId}`,
-        data: { label: note.title },
-        position: { x: 200 + idx * 150, y: 570 },
+        data: { label: `📄 ${note.title}` },
+        position: { x: 200 + idx * 220, y: 620 },
         style: {
           background: "#ede9fe",
           color: "#5b21b6",
@@ -218,7 +223,7 @@ const generateMindMapData = (studyPack: StudyPack) => {
           borderRadius: "8px",
           padding: "8px 12px",
           fontSize: "11px",
-          maxWidth: "140px",
+          maxWidth: "200px",
         },
       });
       edges.push({
@@ -277,13 +282,22 @@ export const MindMapSection = ({ studyPack }: MindMapSectionProps) => {
       </div>
 
       {/* Mind Map Canvas */}
-      <div className="relative w-full h-[700px] bg-card border border-border rounded-xl overflow-hidden shadow-lg">
+      <div className="relative w-full h-[800px] bg-card border border-border rounded-xl overflow-hidden shadow-lg">
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           fitView
+          fitViewOptions={{
+            padding: 0.3,
+            includeHiddenNodes: false,
+            minZoom: 0.5,
+            maxZoom: 1.5,
+          }}
+          minZoom={0.3}
+          maxZoom={2}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
           attributionPosition="bottom-right"
         >
           <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
