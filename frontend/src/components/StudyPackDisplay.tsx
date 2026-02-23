@@ -64,13 +64,20 @@ export const StudyPackDisplay = ({ studyPack, onBack }: StudyPackDisplayProps) =
         transition={{ delay: 0.1 }}
       >
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 mb-6 bg-secondary p-1 rounded-lg gap-1">
+          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7 mb-6 bg-secondary p-1 rounded-lg gap-1">
             <TabsTrigger
               value="summary"
               className="flex items-center gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm rounded-md text-xs sm:text-sm"
             >
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Summary</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="mindmap"
+              className="flex items-center gap-1.5 data-[state=active]:bg-card data-[state=active]:shadow-sm rounded-md text-xs sm:text-sm"
+            >
+              <Network className="w-4 h-4" />
+              <span className="hidden sm:inline">Mind Map</span>
             </TabsTrigger>
             <TabsTrigger
               value="notes"
@@ -114,6 +121,10 @@ export const StudyPackDisplay = ({ studyPack, onBack }: StudyPackDisplayProps) =
               tldr={studyPack.summary.tl_dr}
               importantPoints={studyPack.summary.important_points}
             />
+          </TabsContent>
+
+          <TabsContent value="mindmap" className="mt-0">
+            <MindMapSection studyPack={studyPack} />
           </TabsContent>
 
           <TabsContent value="notes" className="mt-0">
