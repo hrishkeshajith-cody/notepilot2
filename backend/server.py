@@ -52,6 +52,15 @@ class User(BaseModel):
     picture: Optional[str] = None
     created_at: datetime
 
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    name: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
 class SessionData(BaseModel):
     session_id: str
 
