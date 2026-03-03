@@ -376,10 +376,10 @@ async def chat_with_notepilot(chat_request: ChatRequest, request: Request):
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         
-        # Get OpenAI API key
-        api_key = os.environ.get('OPENAI_API_KEY')
+        # Get Emergent LLM key
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
         if not api_key:
-            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+            raise HTTPException(status_code=500, detail="API key not configured")
         
         # Build system message with study context
         system_message = """You are NotePilot AI, an intelligent study assistant helping students learn better. 
@@ -410,7 +410,7 @@ Current Study Context:
 The student is currently working on this material. Use this context to provide relevant, targeted help."""
             system_message += context_info
         
-        # Initialize LlmChat with session for memory
+        # Initialize LlmChat with session for memory using Emergent key
         chat = LlmChat(
             api_key=api_key,
             session_id=chat_request.session_id,
