@@ -282,7 +282,7 @@ export const NotePilotChat = () => {
                   </div>
                   <h4 className="font-semibold text-foreground mb-2">Hey there! 👋</h4>
                   <p className="text-sm text-muted-foreground mb-4">
-                    I'm NotePilot AI powered by GPT-5-mini. I have memory of our conversation and can help with your studies!
+                    I'm NotePilot AI, your friendly study assistant. I have memory of our conversation and can help with your studies!
                   </p>
                   {studyContext && (
                     <div className="mt-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
