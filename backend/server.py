@@ -111,6 +111,103 @@ async def get_status_checks():
 
 # ============ AUTH ENDPOINTS ============
 
+@api_router.post("/auth/signup")
+async def signup(user_data: UserCreate, response: Response):
+    """Simple email/password signup"""
+    try:
+        # Check if user already exists
+        existing_user = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create new user (storing password as-is for MVP - should hash in production)
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": user_data.email,
+            "name": user_data.name,
+            "password": user_data.password,  # In production, use bcrypt
+            "picture": None,
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        # Create session
+        session_token = f"session_{uuid.uuid4().hex}"
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        await db.user_sessions.insert_one({
+            "user_id": user_id,
+            "session_token": session_token,
+            "expires_at": expires_at,
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        # Set cookie
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=7 * 24 * 60 * 60,
+            path="/"
+        )
+        
+        # Return user data
+        user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password": 0})
+        return User(**user_doc)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Signup error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Signup failed")
+
+
+@api_router.post("/auth/login")
+async def login(credentials: UserLogin, response: Response):
+    """Simple email/password login"""
+    try:
+        # Find user
+        user_doc = await db.users.find_one({"email": credentials.email}, {"_id": 0})
+        if not user_doc:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Check password (simple comparison for MVP)
+        if user_doc.get("password") != credentials.password:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Create new session
+        session_token = f"session_{uuid.uuid4().hex}"
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        await db.user_sessions.insert_one({
+            "user_id": user_doc["user_id"],
+            "session_token": session_token,
+            "expires_at": expires_at,
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        # Set cookie
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=7 * 24 * 60 * 60,
+            path="/"
+        )
+        
+        # Return user data (without password)
+        del user_doc["password"]
+        return User(**user_doc)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Login failed")
+
+
 @api_router.post("/auth/session")
 async def exchange_session(session_data: SessionData, response: Response):
     """Exchange session_id for user data and session_token"""
