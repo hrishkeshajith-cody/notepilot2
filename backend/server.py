@@ -372,12 +372,12 @@ async def logout(request: Request, response: Response):
 
 @api_router.post("/chat", response_model=ChatResponse)
 async def chat_with_notepilot(chat_request: ChatRequest, request: Request):
-    """Enhanced NotePilot chatbot with GPT-5-mini, session memory, and study context awareness"""
+    """Enhanced NotePilot chatbot with session memory and study context awareness"""
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         
-        # Get Emergent LLM key
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        # Get OpenRouter API key
+        api_key = os.environ.get('OPENROUTER_API_KEY')
         if not api_key:
             raise HTTPException(status_code=500, detail="API key not configured")
         
@@ -410,12 +410,12 @@ Current Study Context:
 The student is currently working on this material. Use this context to provide relevant, targeted help."""
             system_message += context_info
         
-        # Initialize LlmChat with session for memory using Emergent key
+        # Initialize LlmChat with session for memory using OpenRouter
         chat = LlmChat(
             api_key=api_key,
             session_id=chat_request.session_id,
             system_message=system_message
-        ).with_model("openai", "gpt-5-mini")
+        ).with_model("openrouter", "openai/gpt-3.5-turbo")
         
         # Get chat history from database
         history_doc = await db.chat_history.find_one(
