@@ -9,6 +9,7 @@ import { ThemePreferencesProvider } from "@/hooks/useThemePreferences";
 import { NotePilotProvider } from "@/contexts/NotePilotContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { NotePilotChat } from "@/components/NotePilotChat";
+import { Analytics } from "@vercel/analytics/react";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import AuthCallback from "./components/AuthCallback";
@@ -57,6 +58,7 @@ const App = () => (
                 <AppRouter />
               </BrowserRouter>
               <NotePilotChat />
+              <Analytics />
             </TooltipProvider>
           </NotePilotProvider>
         </AuthProvider>
