@@ -121,6 +121,50 @@ class FlashcardSetUpdate(BaseModel):
 async def root():
     return {"message": "Hello World"}
 
+@api_router.post("/generate-from-youtube")
+async def generate_study_pack_from_youtube(request: Request):
+    """Generate study pack from YouTube video URL"""
+    try:
+        data = await request.json()
+        youtube_url = data.get("youtube_url")
+        
+        if not youtube_url:
+            raise HTTPException(status_code=400, detail="YouTube URL is required")
+        
+        # Extract video ID from URL
+        import re
+        video_id_match = re.search(r'(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})', youtube_url)
+        if not video_id_match:
+            raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+        
+        video_id = video_id_match.group(1)
+        
+        # Get transcript
+        try:
+            from youtube_transcript_api import YouTubeTranscriptApi
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            transcript_text = " ".join([item['text'] for item in transcript_list])
+        except Exception as e:
+            logger.error(f"Transcript error: {str(e)}")
+            raise HTTPException(status_code=400, detail="Could not fetch video transcript. The video might not have captions/subtitles available.")
+        
+        if not transcript_text.strip():
+            raise HTTPException(status_code=400, detail="Video transcript is empty")
+        
+        # Return transcript for frontend to use with existing Supabase edge function
+        return {
+            "success": True,
+            "video_id": video_id,
+            "transcript": transcript_text,
+            "transcript_length": len(transcript_text)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"YouTube processing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process YouTube video: {str(e)}")
+
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
     status_dict = input.dict()
