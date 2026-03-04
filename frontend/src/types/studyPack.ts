@@ -70,6 +70,7 @@ export interface InputFormData {
   language: string;
   chapterText: string;
   pdfData?: string;
+  youtubeUrl?: string;
 }
 
 export interface UserPreferences {

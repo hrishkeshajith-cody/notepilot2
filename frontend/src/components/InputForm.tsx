@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, GraduationCap, Languages, FileText, Sparkles, Upload, X, FileType, CheckCircle } from "lucide-react";
+import { BookOpen, GraduationCap, Languages, FileText, Sparkles, Upload, X, FileType, CheckCircle, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InputFormData } from "@/types/studyPack";
+import { useToast } from "@/hooks/use-toast";
 
 interface InputFormProps {
   onGenerate: (data: InputFormData) => void;
@@ -33,15 +35,70 @@ export const InputForm = ({ onGenerate, isLoading }: InputFormProps) => {
     language: "English",
     chapterText: "",
     pdfData: undefined,
+    youtubeUrl: "",
   });
   const [pdfFile, setPdfFile] = useState<{ name: string; data: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessingYoutube, setIsProcessingYoutube] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.grade && formData.subject && formData.chapterTitle && (formData.chapterText || pdfFile)) {
+    if (formData.grade && formData.subject && formData.chapterTitle && (formData.chapterText || pdfFile || formData.youtubeUrl)) {
       onGenerate(formData);
+    }
+  };
+
+  const handleYoutubeSubmit = async () => {
+    if (!formData.youtubeUrl) {
+      toast({
+        title: "YouTube URL required",
+        description: "Please enter a valid YouTube URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessingYoutube(true);
+    try {
+      const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || import.meta.env.VITE_BACKEND_URL || "";
+      const response = await fetch(`${backendUrl}/api/generate-from-youtube`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          youtube_url: formData.youtubeUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to fetch video transcript");
+      }
+
+      const data = await response.json();
+      
+      // Set the transcript as chapter text
+      setFormData({
+        ...formData,
+        chapterText: data.transcript,
+      });
+
+      toast({
+        title: "Transcript extracted!",
+        description: `Successfully extracted ${data.transcript_length} characters from video`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "YouTube processing failed",
+        description: error.message || "Could not extract transcript from video",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingYoutube(false);
     }
   };
 
@@ -96,7 +153,7 @@ export const InputForm = ({ onGenerate, isLoading }: InputFormProps) => {
     setIsDragging(false);
   };
 
-  const isValid = formData.grade && formData.subject && formData.chapterTitle && (formData.chapterText.length > 50 || pdfFile);
+  const isValid = formData.grade && formData.subject && formData.chapterTitle && (formData.chapterText.length > 50 || pdfFile || formData.youtubeUrl);
 
   return (
     <motion.div
