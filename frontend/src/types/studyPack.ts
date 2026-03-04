@@ -78,3 +78,19 @@ export interface UserPreferences {
   font: AppFont;
   shape: AppShape;
 }
+
+// Custom Flashcard Types
+export interface CustomFlashcardItem {
+  question: string;
+  answer: string;
+}
+
+export interface CustomFlashcardSet {
+  set_id: string;
+  user_id: string;
+  title: string;
+  description?: string;
+  flashcards: CustomFlashcardItem[];
+  created_at: string;
+  updated_at: string;
+}

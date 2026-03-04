@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookOpen, History, LogOut, ChevronLeft, ChevronRight, Moon, Sun, Palette, Trash2, Loader2, Layers } from "lucide-react";
+import { BookOpen, History, LogOut, ChevronLeft, ChevronRight, Moon, Sun, Palette, Trash2, Loader2, Layers, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeCustomizer } from "@/components/ThemeCustomizer";
 import { FlashcardCreator } from "@/components/FlashcardCreator";
-import { StudyPack } from "@/types/studyPack";
+import { StudyPack, CustomFlashcardSet } from "@/types/studyPack";
 import { cn } from "@/lib/utils";
 import {
   Collapsible,
@@ -21,6 +21,7 @@ import {
 
 interface AppSidebarProps {
   onSelectPack: (pack: StudyPack) => void;
+  onSelectFlashcardSet: (set: CustomFlashcardSet) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -43,10 +44,12 @@ interface SavedStudyPack {
   important_questions: any;
 }
 
-export function AppSidebar({ onSelectPack, isCollapsed, onToggleCollapse }: AppSidebarProps) {
+export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, onToggleCollapse }: AppSidebarProps) {
   const [studyPacks, setStudyPacks] = useState<SavedStudyPack[]>([]);
+  const [customFlashcards, setCustomFlashcards] = useState<CustomFlashcardSet[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingFlashcards, setIsLoadingFlashcards] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const { user, signOut } = useAuth();
@@ -59,6 +62,7 @@ export function AppSidebar({ onSelectPack, isCollapsed, onToggleCollapse }: AppS
     if (user) {
       fetchProfile();
       fetchStudyPacks();
+      fetchCustomFlashcards();
     }
   }, [user]);
 
@@ -90,6 +94,30 @@ export function AppSidebar({ onSelectPack, isCollapsed, onToggleCollapse }: AppS
       setStudyPacks(data || []);
     }
     setIsLoading(false);
+  };
+
+  const fetchCustomFlashcards = async () => {
+    setIsLoadingFlashcards(true);
+    try {
+      const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || import.meta.env.VITE_BACKEND_URL || "";
+      const response = await fetch(`${backendUrl}/api/flashcards`, {
+        credentials: "include",
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setCustomFlashcards(data);
+      } else {
+        console.error("Error fetching custom flashcards");
+      }
+    } catch (error) {
+      console.error("Error fetching custom flashcards:", error);
+    }
+    setIsLoadingFlashcards(false);
+  };
+
+  const handleFlashcardCreated = () => {
+    fetchCustomFlashcards();
   };
 
   const handleSelectPack = (pack: SavedStudyPack) => {
@@ -265,8 +293,58 @@ export function AppSidebar({ onSelectPack, isCollapsed, onToggleCollapse }: AppS
 
       {/* Study Packs History */}
       <div className="flex-1 overflow-hidden flex flex-col">
+        {/* My Flashcards Section */}
         {!isCollapsed && (
           <div className="p-4 pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Layers className="w-4 h-4" />
+                My Flashcards
+              </div>
+              <FlashcardCreator onCreated={handleFlashcardCreated} />
+            </div>
+          </div>
+        )}
+        
+        {!isCollapsed && (
+          <div className="px-2 max-h-40 overflow-y-auto">
+            {isLoadingFlashcards ? (
+              <div className="space-y-2 p-2">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-10 bg-muted/50 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : customFlashcards.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3 px-2">
+                No flashcard sets yet
+              </p>
+            ) : (
+              <div className="space-y-1 py-2">
+                {customFlashcards.map((set) => (
+                  <button
+                    key={set.set_id}
+                    onClick={() => onSelectFlashcardSet(set)}
+                    className="group relative w-full text-left rounded-lg transition-colors hover:bg-muted/50 p-3"
+                    data-testid={`flashcard-set-${set.set_id}`}
+                  >
+                    <p className="font-medium text-foreground text-sm truncate">
+                      {set.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {set.flashcards.length} cards
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <Separator className="mx-4 my-2" />
+
+        {/* Recent Study Packs Section */}
+        {!isCollapsed && (
+          <div className="p-4 pb-2 pt-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <History className="w-4 h-4" />
               Recent Study Packs

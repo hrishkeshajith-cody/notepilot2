@@ -4,7 +4,8 @@ import { Sparkles } from "lucide-react";
 import { InputForm } from "@/components/InputForm";
 import { StudyPackDisplay } from "@/components/StudyPackDisplay";
 import { AppSidebar } from "@/components/AppSidebar";
-import { InputFormData, StudyPack } from "@/types/studyPack";
+import { FlashcardViewer } from "@/components/FlashcardViewer";
+import { InputFormData, StudyPack, CustomFlashcardSet } from "@/types/studyPack";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useNotePilot } from "@/contexts/NotePilotContext";
@@ -12,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const StudyApp = () => {
   const [studyPack, setStudyPack] = useState<StudyPack | null>(null);
+  const [selectedFlashcardSet, setSelectedFlashcardSet] = useState<CustomFlashcardSet | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Auto-hide sidebar on initial load
   const { user } = useAuth();
@@ -141,13 +143,33 @@ const StudyApp = () => {
 
   const handleBack = () => {
     setStudyPack(null);
+    setSelectedFlashcardSet(null);
+  };
+
+  const handleSelectFlashcardSet = (set: CustomFlashcardSet) => {
+    setStudyPack(null);
+    setSelectedFlashcardSet(set);
+  };
+
+  const handleFlashcardSetUpdate = (updatedSet: CustomFlashcardSet) => {
+    setSelectedFlashcardSet(updatedSet);
+  };
+
+  const handleFlashcardSetDelete = () => {
+    setSelectedFlashcardSet(null);
+  };
+
+  const handleSelectStudyPack = (pack: StudyPack) => {
+    setSelectedFlashcardSet(null);
+    setStudyPack(pack);
   };
 
   return (
     <div className="min-h-screen bg-background flex w-full">
       {/* Sidebar */}
       <AppSidebar
-        onSelectPack={setStudyPack}
+        onSelectPack={handleSelectStudyPack}
+        onSelectFlashcardSet={handleSelectFlashcardSet}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
@@ -191,7 +213,14 @@ const StudyApp = () => {
 
         <main className="flex-1 relative z-10 overflow-y-auto">
           <div className="container mx-auto px-4 py-8 md:py-12 max-w-4xl">
-            {studyPack ? (
+            {selectedFlashcardSet ? (
+              <FlashcardViewer
+                flashcardSet={selectedFlashcardSet}
+                onBack={handleBack}
+                onUpdate={handleFlashcardSetUpdate}
+                onDelete={handleFlashcardSetDelete}
+              />
+            ) : studyPack ? (
               <StudyPackDisplay studyPack={studyPack} onBack={handleBack} />
             ) : (
               <div className="space-y-8">
