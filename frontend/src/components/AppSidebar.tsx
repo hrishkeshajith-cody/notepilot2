@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookOpen, History, LogOut, ChevronLeft, ChevronRight, Moon, Sun, Palette, Trash2, Loader2 } from "lucide-react";
+import { BookOpen, History, LogOut, ChevronLeft, ChevronRight, Moon, Sun, Palette, Trash2, Loader2, Layers } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeCustomizer } from "@/components/ThemeCustomizer";
+import { FlashcardCreator } from "@/components/FlashcardCreator";
 import { StudyPack } from "@/types/studyPack";
 import { cn } from "@/lib/utils";
 import {
