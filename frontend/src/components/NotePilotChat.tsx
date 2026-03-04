@@ -334,9 +334,20 @@ export const NotePilotChat = () => {
             {/* Suggested Questions */}
             {suggestedQuestions.length > 0 && !isLoading && (
               <div className="px-4 py-2 border-t border-border bg-secondary/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <Lightbulb className="w-3 h-3 text-primary" />
-                  <span className="text-xs font-medium text-muted-foreground">Suggested questions:</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="w-3 h-3 text-primary" />
+                    <span className="text-xs font-medium text-muted-foreground">Suggested questions:</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSuggestedQuestions([])}
+                    className="h-6 w-6 p-0 hover:bg-secondary"
+                    title="Dismiss suggestions"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {suggestedQuestions.map((question, index) => (
