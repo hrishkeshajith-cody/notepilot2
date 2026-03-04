@@ -92,6 +92,30 @@ class ChatHistory(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+# Custom Flashcard Models
+class FlashcardItem(BaseModel):
+    question: str
+    answer: str
+
+class CustomFlashcardSet(BaseModel):
+    set_id: str = Field(default_factory=lambda: f"flashcard_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    title: str
+    description: Optional[str] = None
+    flashcards: List[FlashcardItem]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class FlashcardSetCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    flashcards: List[FlashcardItem]
+
+class FlashcardSetUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    flashcards: Optional[List[FlashcardItem]] = None
+
 # Add your routes to the router instead of directly to app
 @api_router.get("/")
 async def root():
