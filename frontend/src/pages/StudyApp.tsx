@@ -15,7 +15,7 @@ const StudyApp = () => {
   const [studyPack, setStudyPack] = useState<StudyPack | null>(null);
   const [selectedFlashcardSet, setSelectedFlashcardSet] = useState<CustomFlashcardSet | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true); // Auto-hide sidebar on initial load
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
   const { setStudyContext } = useNotePilot();
@@ -39,10 +39,8 @@ const StudyApp = () => {
     setIsLoading(true);
 
     try {
-      // Get current session for auth
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
+      // Use custom auth user instead of Supabase session
+      if (!user) {
         toast({
           title: "Not authenticated",
           description: "Please log in to generate study packs.",
@@ -52,14 +50,14 @@ const StudyApp = () => {
         return;
       }
 
-      // Call the AI-powered edge function
+      // Call the AI-powered edge function using the Supabase anon key for authorization
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-study-pack`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
             grade: data.grade,
@@ -75,7 +73,6 @@ const StudyApp = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        // Handle specific error codes
         if (response.status === 429) {
           toast({
             title: "Rate limit reached",
@@ -101,11 +98,11 @@ const StudyApp = () => {
 
       setStudyPack(result);
 
-      // Auto-save to database
+      // Auto-save to database using custom user_id
       const { error: saveError } = await supabase
         .from("study_packs")
         .insert({
-          user_id: session.user.id,
+          user_id: user.user_id,
           chapter_title: data.chapterTitle,
           subject: data.subject,
           grade: data.grade,
@@ -174,7 +171,7 @@ const StudyApp = () => {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
-      {/* Floating toggle button when sidebar is hidden - stays visible on scroll */}
+      {/* Floating toggle button when sidebar is hidden */}
       {sidebarCollapsed && (
         <motion.button
           initial={{ opacity: 0, x: -20 }}
@@ -203,7 +200,7 @@ const StudyApp = () => {
         </motion.button>
       )}
 
-      {/* Main Content - Full width when sidebar collapsed, with left margin when sidebar visible */}
+      {/* Main Content */}
       <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'ml-0' : 'ml-80'}`}>
         {/* Background decoration */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
