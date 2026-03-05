@@ -19,6 +19,17 @@ export const QuizSection = ({ instructions, questions }: QuizSectionProps) => {
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [showResults, setShowResults] = useState(false);
 
+  // Guard: no questions available
+  if (!questions || questions.length === 0) {
+    return (
+      <Card className="border-border shadow-md">
+        <CardContent className="py-12 text-center text-muted-foreground">
+          No quiz questions available for this study pack.
+        </CardContent>
+      </Card>
+    );
+  }
+
   const currentQuestion = questions[currentIndex];
   const hasAnswered = selectedAnswer !== null;
   const isCorrect = selectedAnswer === currentQuestion?.correct_index;
@@ -179,22 +190,24 @@ export const QuizSection = ({ instructions, questions }: QuizSectionProps) => {
                     {currentQuestion.question}
                   </h3>
                   <ExplainButton
-                    content={`${currentQuestion.question} (Answer: ${currentQuestion.options[currentQuestion.correct_index]})`}
+                    content={`${currentQuestion.question} (Answer: ${currentQuestion.options?.[currentQuestion.correct_index]})`}
                     type="quiz question"
                     className="shrink-0 mt-1"
                   />
                 </div>
-                <Badge
-                  variant="outline"
-                  className={cn("capitalize shrink-0", getDifficultyColor(currentQuestion.difficulty))}
-                >
-                  {currentQuestion.difficulty}
-                </Badge>
+                {currentQuestion.difficulty && (
+                  <Badge
+                    variant="outline"
+                    className={cn("capitalize shrink-0", getDifficultyColor(currentQuestion.difficulty))}
+                  >
+                    {currentQuestion.difficulty}
+                  </Badge>
+                )}
               </div>
 
               {/* Options */}
               <div className="space-y-2">
-                {currentQuestion.options.map((option, index) => {
+                {(currentQuestion.options || []).map((option, index) => {
                   const isSelected = selectedAnswer === index;
                   const isCorrectOption = index === currentQuestion.correct_index;
                   const showCorrect = hasAnswered && isCorrectOption;
