@@ -442,8 +442,6 @@ async def logout(request: Request, response: Response):
 async def chat_with_notepilot(chat_request: ChatRequest, request: Request):
     """Enhanced NotePilot chatbot with session memory and study context awareness"""
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
         # Get OpenRouter API key
         api_key = os.environ.get('OPENROUTER_API_KEY')
         if not api_key:
@@ -483,24 +481,41 @@ Current Study Context:
 The student is currently working on this material. Use this context to provide relevant, targeted help."""
             system_message += context_info
         
-        # Initialize LlmChat with session for memory using OpenRouter
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=chat_request.session_id,
-            system_message=system_message
-        ).with_model("openrouter", "openai/gpt-3.5-turbo")
-        
         # Get chat history from database
         history_doc = await db.chat_history.find_one(
             {"session_id": chat_request.session_id},
             {"_id": 0}
         )
-        
-        # Create user message
-        user_message = UserMessage(text=chat_request.message)
-        
-        # Send message and get response
-        response_text = await chat.send_message(user_message)
+
+        # Build messages array from history + new user message
+        messages = [{"role": "system", "content": system_message}]
+        if history_doc and history_doc.get("messages"):
+            for msg in history_doc["messages"]:
+                if msg.get("role") in ("user", "assistant"):
+                    messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": chat_request.message})
+
+        # Call OpenRouter directly via httpx
+        async with httpx.AsyncClient() as http_client:
+            openrouter_response = await http_client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "openai/gpt-3.5-turbo",
+                    "messages": messages,
+                },
+                timeout=60.0,
+            )
+
+        if openrouter_response.status_code != 200:
+            logger.error(f"OpenRouter error: {openrouter_response.text}")
+            raise HTTPException(status_code=500, detail="Failed to get response from AI service")
+
+        openrouter_data = openrouter_response.json()
+        response_text = openrouter_data["choices"][0]["message"]["content"]
         
         # Generate suggested questions based on context
         suggested_questions = []
@@ -758,8 +773,6 @@ async def create_flashcards_from_text(request: Request):
         if not api_key:
             raise HTTPException(status_code=500, detail="API key not configured")
         
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        
         system_message = """You are a flashcard generator. Convert the given text into Q&A flashcards.
 Format your response as a JSON array of objects with 'question' and 'answer' fields.
 Create 10-20 flashcards that cover the key concepts.
@@ -772,16 +785,33 @@ Example format:
 ]
 
 Only return the JSON array, no other text."""
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"flashcard_gen_{uuid.uuid4().hex[:8]}",
-            system_message=system_message
-        ).with_model("openrouter", "openai/gpt-3.5-turbo")
-        
+
         prompt = f"Generate flashcards from this content:\n\n{content[:4000]}"  # Limit content length
-        user_message = UserMessage(text=prompt)
-        response = await chat.send_message(user_message)
+
+        # Call OpenRouter directly via httpx
+        async with httpx.AsyncClient() as http_client:
+            openrouter_response = await http_client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "openai/gpt-3.5-turbo",
+                    "messages": [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": prompt},
+                    ],
+                },
+                timeout=60.0,
+            )
+
+        if openrouter_response.status_code != 200:
+            logger.error(f"OpenRouter error: {openrouter_response.text}")
+            raise HTTPException(status_code=500, detail="Failed to get response from AI service")
+
+        openrouter_data = openrouter_response.json()
+        response = openrouter_data["choices"][0]["message"]["content"]
         
         # Parse JSON response
         import json
