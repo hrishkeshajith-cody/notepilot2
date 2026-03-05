@@ -1,8 +1,8 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Cookie
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from supabase import create_client, Client
 import os
 import logging
 from pathlib import Path
@@ -23,10 +23,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Supabase connection
+supabase_url = os.environ['SUPABASE_URL']
+supabase_key = os.environ['SUPABASE_KEY']
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -79,7 +79,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     session_id: str
-    study_context: Optional[dict] = None  # Current study pack context
+    study_context: Optional[dict] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -116,10 +116,13 @@ class FlashcardSetUpdate(BaseModel):
     description: Optional[str] = None
     flashcards: Optional[List[FlashcardItem]] = None
 
-# Add your routes to the router instead of directly to app
+
+# ============ ROUTES ============
+
 @api_router.get("/")
 async def root():
     return {"message": "Hello World"}
+
 
 @api_router.post("/generate-from-youtube")
 async def generate_study_pack_from_youtube(request: Request):
@@ -127,19 +130,17 @@ async def generate_study_pack_from_youtube(request: Request):
     try:
         data = await request.json()
         youtube_url = data.get("youtube_url")
-        
+
         if not youtube_url:
             raise HTTPException(status_code=400, detail="YouTube URL is required")
-        
-        # Extract video ID from URL
+
         import re
         video_id_match = re.search(r'(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})', youtube_url)
         if not video_id_match:
             raise HTTPException(status_code=400, detail="Invalid YouTube URL")
-        
+
         video_id = video_id_match.group(1)
-        
-        # Get transcript
+
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
@@ -147,35 +148,40 @@ async def generate_study_pack_from_youtube(request: Request):
         except Exception as e:
             logger.error(f"Transcript error: {str(e)}")
             raise HTTPException(status_code=400, detail="Could not fetch video transcript. The video might not have captions/subtitles available.")
-        
+
         if not transcript_text.strip():
             raise HTTPException(status_code=400, detail="Video transcript is empty")
-        
-        # Return transcript for frontend to use with existing Supabase edge function
+
         return {
             "success": True,
             "video_id": video_id,
             "transcript": transcript_text,
             "transcript_length": len(transcript_text)
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"YouTube processing error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to process YouTube video: {str(e)}")
 
+
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
+    status_obj = StatusCheck(client_name=input.client_name)
+    supabase.table("status_checks").insert({
+        "id": status_obj.id,
+        "client_name": status_obj.client_name,
+        "timestamp": status_obj.timestamp.isoformat()
+    }).execute()
     return status_obj
+
 
 @api_router.get("/status", response_model=List[StatusCheck])
 async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+    result = supabase.table("status_checks").select("*").execute()
+    return [StatusCheck(**row) for row in result.data]
+
 
 # ============ AUTH ENDPOINTS ============
 
@@ -183,33 +189,30 @@ async def get_status_checks():
 async def signup(user_data: UserCreate, response: Response):
     """Simple email/password signup"""
     try:
-        # Check if user already exists
-        existing_user = await db.users.find_one({"email": user_data.email}, {"_id": 0})
-        if existing_user:
+        existing = supabase.table("users").select("user_id").eq("email", user_data.email).execute()
+        if existing.data:
             raise HTTPException(status_code=400, detail="Email already registered")
-        
-        # Create new user (storing password as-is for MVP - should hash in production)
+
         user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({
+        now = datetime.now(timezone.utc).isoformat()
+        supabase.table("users").insert({
             "user_id": user_id,
             "email": user_data.email,
             "name": user_data.name,
-            "password": user_data.password,  # In production, use bcrypt
+            "password": user_data.password,
             "picture": None,
-            "created_at": datetime.now(timezone.utc)
-        })
-        
-        # Create session
+            "created_at": now
+        }).execute()
+
         session_token = f"session_{uuid.uuid4().hex}"
-        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-        await db.user_sessions.insert_one({
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+        supabase.table("user_sessions").insert({
             "user_id": user_id,
             "session_token": session_token,
             "expires_at": expires_at,
-            "created_at": datetime.now(timezone.utc)
-        })
-        
-        # Set cookie
+            "created_at": now
+        }).execute()
+
         response.set_cookie(
             key="session_token",
             value=session_token,
@@ -219,11 +222,10 @@ async def signup(user_data: UserCreate, response: Response):
             max_age=7 * 24 * 60 * 60,
             path="/"
         )
-        
-        # Return user data
-        user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password": 0})
-        return User(**user_doc)
-        
+
+        user_doc = supabase.table("users").select("user_id, email, name, picture, created_at").eq("user_id", user_id).single().execute()
+        return User(**user_doc.data)
+
     except HTTPException:
         raise
     except Exception as e:
@@ -235,26 +237,24 @@ async def signup(user_data: UserCreate, response: Response):
 async def login(credentials: UserLogin, response: Response):
     """Simple email/password login"""
     try:
-        # Find user
-        user_doc = await db.users.find_one({"email": credentials.email}, {"_id": 0})
-        if not user_doc:
+        result = supabase.table("users").select("*").eq("email", credentials.email).execute()
+        if not result.data:
             raise HTTPException(status_code=401, detail="Invalid email or password")
-        
-        # Check password (simple comparison for MVP)
+
+        user_doc = result.data[0]
         if user_doc.get("password") != credentials.password:
             raise HTTPException(status_code=401, detail="Invalid email or password")
-        
-        # Create new session
+
         session_token = f"session_{uuid.uuid4().hex}"
-        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-        await db.user_sessions.insert_one({
+        now = datetime.now(timezone.utc).isoformat()
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+        supabase.table("user_sessions").insert({
             "user_id": user_doc["user_id"],
             "session_token": session_token,
             "expires_at": expires_at,
-            "created_at": datetime.now(timezone.utc)
-        })
-        
-        # Set cookie
+            "created_at": now
+        }).execute()
+
         response.set_cookie(
             key="session_token",
             value=session_token,
@@ -264,11 +264,15 @@ async def login(credentials: UserLogin, response: Response):
             max_age=7 * 24 * 60 * 60,
             path="/"
         )
-        
-        # Return user data (without password)
-        del user_doc["password"]
-        return User(**user_doc)
-        
+
+        return User(
+            user_id=user_doc["user_id"],
+            email=user_doc["email"],
+            name=user_doc["name"],
+            picture=user_doc.get("picture"),
+            created_at=user_doc["created_at"]
+        )
+
     except HTTPException:
         raise
     except Exception as e:
@@ -280,73 +284,61 @@ async def login(credentials: UserLogin, response: Response):
 async def exchange_session(session_data: SessionData, response: Response):
     """Exchange session_id for user data and session_token"""
     try:
-        # Call Emergent Auth API to get session data
-        async with httpx.AsyncClient() as client:
-            auth_response = await client.get(
+        async with httpx.AsyncClient() as http_client:
+            auth_response = await http_client.get(
                 "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
                 headers={"X-Session-ID": session_data.session_id},
                 timeout=10.0
             )
-            
             if auth_response.status_code != 200:
                 raise HTTPException(status_code=401, detail="Invalid session")
-            
             data = auth_response.json()
-        
-        # Extract user data
+
         email = data.get("email")
         name = data.get("name", "")
         picture = data.get("picture", "")
         session_token = data.get("session_token")
-        
+
         if not email or not session_token:
             raise HTTPException(status_code=400, detail="Invalid session data")
-        
-        # Check if user exists
-        user_doc = await db.users.find_one({"email": email}, {"_id": 0})
-        
-        if user_doc:
-            # Update existing user
-            user_id = user_doc["user_id"]
-            await db.users.update_one(
-                {"email": email},
-                {"$set": {"name": name, "picture": picture}}
-            )
+
+        existing = supabase.table("users").select("user_id").eq("email", email).execute()
+        now = datetime.now(timezone.utc).isoformat()
+
+        if existing.data:
+            user_id = existing.data[0]["user_id"]
+            supabase.table("users").update({"name": name, "picture": picture}).eq("user_id", user_id).execute()
         else:
-            # Create new user with custom user_id
             user_id = f"user_{uuid.uuid4().hex[:12]}"
-            await db.users.insert_one({
+            supabase.table("users").insert({
                 "user_id": user_id,
                 "email": email,
                 "name": name,
                 "picture": picture,
-                "created_at": datetime.now(timezone.utc)
-            })
-        
-        # Store session in database with 7-day expiry
-        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-        await db.user_sessions.insert_one({
+                "created_at": now
+            }).execute()
+
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+        supabase.table("user_sessions").insert({
             "user_id": user_id,
             "session_token": session_token,
             "expires_at": expires_at,
-            "created_at": datetime.now(timezone.utc)
-        })
-        
-        # Set httpOnly cookie
+            "created_at": now
+        }).execute()
+
         response.set_cookie(
             key="session_token",
             value=session_token,
             httponly=True,
             secure=True,
             samesite="none",
-            max_age=7 * 24 * 60 * 60,  # 7 days in seconds
+            max_age=7 * 24 * 60 * 60,
             path="/"
         )
-        
-        # Return user data
-        user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-        return User(**user_doc)
-        
+
+        user_doc = supabase.table("users").select("user_id, email, name, picture, created_at").eq("user_id", user_id).single().execute()
+        return User(**user_doc.data)
+
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Auth service timeout")
     except Exception as e:
@@ -355,100 +347,68 @@ async def exchange_session(session_data: SessionData, response: Response):
 
 
 async def get_session_token(request: Request) -> Optional[str]:
-    """Helper to get session token from cookie or Authorization header"""
-    # Try cookie first
     session_token = request.cookies.get("session_token")
     if session_token:
         return session_token
-    
-    # Fallback to Authorization header
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         return auth_header.replace("Bearer ", "")
-    
     return None
 
 
 async def get_current_user(request: Request) -> User:
-    """Authenticator helper - validates session and returns user"""
     session_token = await get_session_token(request)
-    
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Find session in database
-    session_doc = await db.user_sessions.find_one(
-        {"session_token": session_token},
-        {"_id": 0}
-    )
-    
-    if not session_doc:
+
+    result = supabase.table("user_sessions").select("*").eq("session_token", session_token).execute()
+    if not result.data:
         raise HTTPException(status_code=401, detail="Invalid session")
-    
-    # Check expiry with timezone awareness
+
+    session_doc = result.data[0]
     expires_at = session_doc["expires_at"]
     if isinstance(expires_at, str):
         expires_at = datetime.fromisoformat(expires_at)
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
-    
+
     if expires_at < datetime.now(timezone.utc):
-        # Clean up expired session
-        await db.user_sessions.delete_one({"session_token": session_token})
+        supabase.table("user_sessions").delete().eq("session_token", session_token).execute()
         raise HTTPException(status_code=401, detail="Session expired")
-    
-    # Get user data
-    user_doc = await db.users.find_one(
-        {"user_id": session_doc["user_id"]},
-        {"_id": 0}
-    )
-    
-    if not user_doc:
+
+    user_result = supabase.table("users").select("user_id, email, name, picture, created_at").eq("user_id", session_doc["user_id"]).execute()
+    if not user_result.data:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    return User(**user_doc)
+
+    return User(**user_result.data[0])
 
 
 @api_router.get("/auth/me")
 async def get_current_user_info(request: Request):
-    """Get current authenticated user data"""
     user = await get_current_user(request)
     return user
 
 
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
-    """Logout user and clear session"""
     session_token = await get_session_token(request)
-    
     if session_token:
-        # Delete session from database
-        await db.user_sessions.delete_one({"session_token": session_token})
-    
-    # Clear cookie
-    response.delete_cookie(
-        key="session_token",
-        path="/",
-        secure=True,
-        httponly=True,
-        samesite="none"
-    )
-    
+        supabase.table("user_sessions").delete().eq("session_token", session_token).execute()
+    response.delete_cookie(key="session_token", path="/", secure=True, httponly=True, samesite="none")
     return {"message": "Logged out successfully"}
+
 
 # ============ CHATBOT ENDPOINTS ============
 
 @api_router.post("/chat", response_model=ChatResponse)
 async def chat_with_notepilot(chat_request: ChatRequest, request: Request):
-    """Enhanced NotePilot chatbot with session memory and study context awareness"""
+    """NotePilot chatbot with session memory and study context awareness"""
     try:
-        # Get OpenRouter API key
         api_key = os.environ.get('OPENROUTER_API_KEY')
         if not api_key:
             raise HTTPException(status_code=500, detail="API key not configured")
-        
-        # Build system message with study context
-        system_message = """You are NotePilot AI, an intelligent study assistant helping students learn better. 
+
+        system_message = """You are NotePilot AI, an intelligent study assistant helping students learn better.
 
 Your capabilities:
 - Explain complex concepts clearly and completely
@@ -469,9 +429,8 @@ Guidelines:
 
 IMPORTANT: Always provide COMPLETE and THOROUGH answers. Better to give a full explanation than leave students confused."""
 
-        # Add study context if available
         if chat_request.study_context:
-            context_info = f"""
+            system_message += f"""
 
 Current Study Context:
 - Subject: {chat_request.study_context.get('subject', 'N/A')}
@@ -479,15 +438,12 @@ Current Study Context:
 - Chapter: {chat_request.study_context.get('chapter_title', 'N/A')}
 
 The student is currently working on this material. Use this context to provide relevant, targeted help."""
-            system_message += context_info
-        
-        # Get chat history from database
-        history_doc = await db.chat_history.find_one(
-            {"session_id": chat_request.session_id},
-            {"_id": 0}
-        )
 
-        # Build messages array from history + new user message
+        # Get chat history from Supabase
+        history_result = supabase.table("chat_history").select("*").eq("session_id", chat_request.session_id).execute()
+        history_doc = history_result.data[0] if history_result.data else None
+
+        # Build messages array
         messages = [{"role": "system", "content": system_message}]
         if history_doc and history_doc.get("messages"):
             for msg in history_doc["messages"]:
@@ -495,7 +451,7 @@ The student is currently working on this material. Use this context to provide r
                     messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": chat_request.message})
 
-        # Call OpenRouter directly via httpx
+        # Call OpenRouter
         async with httpx.AsyncClient() as http_client:
             openrouter_response = await http_client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -514,62 +470,52 @@ The student is currently working on this material. Use this context to provide r
             logger.error(f"OpenRouter error: {openrouter_response.text}")
             raise HTTPException(status_code=500, detail="Failed to get response from AI service")
 
-        openrouter_data = openrouter_response.json()
-        response_text = openrouter_data["choices"][0]["message"]["content"]
-        
-        # Generate suggested questions based on context
-        suggested_questions = []
+        response_text = openrouter_response.json()["choices"][0]["message"]["content"]
+
+        # Suggested questions
         if chat_request.study_context:
             subject = chat_request.study_context.get('subject', '')
             chapter = chat_request.study_context.get('chapter_title', '')
-            
-            # Context-aware suggestions
             suggested_questions = [
                 f"Can you explain the key concepts in {chapter}?",
                 f"What are some practice questions for {subject}?",
                 "Can you create a study plan for this topic?",
-                "What are common mistakes students make here?"
             ]
         else:
-            # General suggestions
             suggested_questions = [
                 "How can I study more effectively?",
                 "Can you help me create flashcards?",
                 "What's a good way to remember this?",
-                "Can you quiz me on this topic?"
             ]
-        
-        # Save to database
-        now = datetime.now(timezone.utc)
+
+        # Save to Supabase
+        now = datetime.now(timezone.utc).isoformat()
         new_messages = [
             {"role": "user", "content": chat_request.message, "timestamp": now},
             {"role": "assistant", "content": response_text, "timestamp": now}
         ]
-        
+
         if history_doc:
-            # Update existing history
-            await db.chat_history.update_one(
-                {"session_id": chat_request.session_id},
-                {
-                    "$push": {"messages": {"$each": new_messages}},
-                    "$set": {"updated_at": now}
-                }
-            )
+            existing_messages = history_doc.get("messages", [])
+            existing_messages.extend(new_messages)
+            supabase.table("chat_history").update({
+                "messages": existing_messages,
+                "updated_at": now
+            }).eq("session_id", chat_request.session_id).execute()
         else:
-            # Create new history
-            await db.chat_history.insert_one({
+            supabase.table("chat_history").insert({
                 "session_id": chat_request.session_id,
                 "messages": new_messages,
                 "created_at": now,
                 "updated_at": now
-            })
-        
+            }).execute()
+
         return ChatResponse(
             response=response_text,
-            suggested_questions=suggested_questions[:3],  # Return top 3
+            suggested_questions=suggested_questions,
             session_id=chat_request.session_id
         )
-        
+
     except Exception as e:
         logger.error(f"Chat error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
@@ -577,52 +523,38 @@ The student is currently working on this material. Use this context to provide r
 
 @api_router.get("/chat/history/{session_id}")
 async def get_chat_history(session_id: str):
-    """Get chat history for a session"""
-    history_doc = await db.chat_history.find_one(
-        {"session_id": session_id},
-        {"_id": 0}
-    )
-    
-    if not history_doc:
+    result = supabase.table("chat_history").select("*").eq("session_id", session_id).execute()
+    if not result.data:
         return {"session_id": session_id, "messages": []}
-    
-    return history_doc
+    return result.data[0]
 
 
 @api_router.delete("/chat/history/{session_id}")
 async def clear_chat_history(session_id: str):
-    """Clear chat history for a session"""
-    result = await db.chat_history.delete_one({"session_id": session_id})
-    
-    if result.deleted_count == 0:
+    result = supabase.table("chat_history").delete().eq("session_id", session_id).execute()
+    if not result.data:
         raise HTTPException(status_code=404, detail="Session not found")
-    
     return {"message": "Chat history cleared", "session_id": session_id}
+
 
 # ============ CUSTOM FLASHCARD ENDPOINTS ============
 
 @api_router.post("/flashcards")
 async def create_flashcard_set(flashcard_data: FlashcardSetCreate, request: Request):
-    """Create a new custom flashcard set"""
     try:
-        # Get current user
         user = await get_current_user(request)
-        
-        # Create flashcard set
+        now = datetime.now(timezone.utc).isoformat()
         flashcard_set = {
             "set_id": f"flashcard_{uuid.uuid4().hex[:12]}",
             "user_id": user.user_id,
             "title": flashcard_data.title,
             "description": flashcard_data.description,
             "flashcards": [card.dict() for card in flashcard_data.flashcards],
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc)
+            "created_at": now,
+            "updated_at": now
         }
-        
-        await db.custom_flashcards.insert_one(flashcard_set)
-        
+        supabase.table("custom_flashcards").insert(flashcard_set).execute()
         return CustomFlashcardSet(**flashcard_set)
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -632,17 +564,10 @@ async def create_flashcard_set(flashcard_data: FlashcardSetCreate, request: Requ
 
 @api_router.get("/flashcards")
 async def get_flashcard_sets(request: Request):
-    """Get all flashcard sets for current user"""
     try:
         user = await get_current_user(request)
-        
-        flashcard_sets = await db.custom_flashcards.find(
-            {"user_id": user.user_id},
-            {"_id": 0}
-        ).to_list(1000)
-        
-        return [CustomFlashcardSet(**fs) for fs in flashcard_sets]
-        
+        result = supabase.table("custom_flashcards").select("*").eq("user_id", user.user_id).execute()
+        return [CustomFlashcardSet(**fs) for fs in result.data]
     except HTTPException:
         raise
     except Exception as e:
@@ -652,20 +577,12 @@ async def get_flashcard_sets(request: Request):
 
 @api_router.get("/flashcards/{set_id}")
 async def get_flashcard_set(set_id: str, request: Request):
-    """Get a specific flashcard set"""
     try:
         user = await get_current_user(request)
-        
-        flashcard_set = await db.custom_flashcards.find_one(
-            {"set_id": set_id, "user_id": user.user_id},
-            {"_id": 0}
-        )
-        
-        if not flashcard_set:
+        result = supabase.table("custom_flashcards").select("*").eq("set_id", set_id).eq("user_id", user.user_id).execute()
+        if not result.data:
             raise HTTPException(status_code=404, detail="Flashcard set not found")
-        
-        return CustomFlashcardSet(**flashcard_set)
-        
+        return CustomFlashcardSet(**result.data[0])
     except HTTPException:
         raise
     except Exception as e:
@@ -675,35 +592,20 @@ async def get_flashcard_set(set_id: str, request: Request):
 
 @api_router.put("/flashcards/{set_id}")
 async def update_flashcard_set(set_id: str, updates: FlashcardSetUpdate, request: Request):
-    """Update a flashcard set"""
     try:
         user = await get_current_user(request)
-        
-        # Build update dict
-        update_data = {"updated_at": datetime.now(timezone.utc)}
+        update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
         if updates.title is not None:
             update_data["title"] = updates.title
         if updates.description is not None:
             update_data["description"] = updates.description
         if updates.flashcards is not None:
             update_data["flashcards"] = [card.dict() for card in updates.flashcards]
-        
-        result = await db.custom_flashcards.update_one(
-            {"set_id": set_id, "user_id": user.user_id},
-            {"$set": update_data}
-        )
-        
-        if result.matched_count == 0:
+
+        result = supabase.table("custom_flashcards").update(update_data).eq("set_id", set_id).eq("user_id", user.user_id).execute()
+        if not result.data:
             raise HTTPException(status_code=404, detail="Flashcard set not found")
-        
-        # Return updated set
-        flashcard_set = await db.custom_flashcards.find_one(
-            {"set_id": set_id},
-            {"_id": 0}
-        )
-        
-        return CustomFlashcardSet(**flashcard_set)
-        
+        return CustomFlashcardSet(**result.data[0])
     except HTTPException:
         raise
     except Exception as e:
@@ -713,19 +615,12 @@ async def update_flashcard_set(set_id: str, updates: FlashcardSetUpdate, request
 
 @api_router.delete("/flashcards/{set_id}")
 async def delete_flashcard_set(set_id: str, request: Request):
-    """Delete a flashcard set"""
     try:
         user = await get_current_user(request)
-        
-        result = await db.custom_flashcards.delete_one(
-            {"set_id": set_id, "user_id": user.user_id}
-        )
-        
-        if result.deleted_count == 0:
+        result = supabase.table("custom_flashcards").delete().eq("set_id", set_id).eq("user_id", user.user_id).execute()
+        if not result.data:
             raise HTTPException(status_code=404, detail="Flashcard set not found")
-        
         return {"message": "Flashcard set deleted", "set_id": set_id}
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -738,22 +633,18 @@ async def create_flashcards_from_text(request: Request):
     """Generate flashcards from uploaded text or PDF"""
     try:
         user = await get_current_user(request)
-        
-        # Get form data
+
         form = await request.form()
         title = form.get("title", "Untitled Flashcard Set")
         content = form.get("content", "")
         file = form.get("file")
-        
-        # Extract text from file if provided
+
         if file:
             file_content = await file.read()
             filename = file.filename.lower()
-            
             if filename.endswith('.txt'):
                 content = file_content.decode('utf-8')
             elif filename.endswith('.pdf'):
-                # Simple PDF text extraction (for MVP)
                 try:
                     import PyPDF2
                     from io import BytesIO
@@ -764,15 +655,14 @@ async def create_flashcards_from_text(request: Request):
                 except Exception as pdf_error:
                     logger.error(f"PDF extraction error: {str(pdf_error)}")
                     raise HTTPException(status_code=400, detail="Failed to extract text from PDF")
-        
+
         if not content.strip():
             raise HTTPException(status_code=400, detail="No content provided")
-        
-        # Use AI to generate flashcards from content
+
         api_key = os.environ.get('OPENROUTER_API_KEY')
         if not api_key:
             raise HTTPException(status_code=500, detail="API key not configured")
-        
+
         system_message = """You are a flashcard generator. Convert the given text into Q&A flashcards.
 Format your response as a JSON array of objects with 'question' and 'answer' fields.
 Create 10-20 flashcards that cover the key concepts.
@@ -786,9 +676,8 @@ Example format:
 
 Only return the JSON array, no other text."""
 
-        prompt = f"Generate flashcards from this content:\n\n{content[:4000]}"  # Limit content length
+        prompt = f"Generate flashcards from this content:\n\n{content[:4000]}"
 
-        # Call OpenRouter directly via httpx
         async with httpx.AsyncClient() as http_client:
             openrouter_response = await http_client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -810,50 +699,44 @@ Only return the JSON array, no other text."""
             logger.error(f"OpenRouter error: {openrouter_response.text}")
             raise HTTPException(status_code=500, detail="Failed to get response from AI service")
 
-        openrouter_data = openrouter_response.json()
-        response = openrouter_data["choices"][0]["message"]["content"]
-        
-        # Parse JSON response
+        response = openrouter_response.json()["choices"][0]["message"]["content"]
+
         import json
         try:
-            # Extract JSON from response
             response_text = response.strip()
             if "```json" in response_text:
                 response_text = response_text.split("```json")[1].split("```")[0]
             elif "```" in response_text:
                 response_text = response_text.split("```")[1].split("```")[0]
-            
+
             flashcards_data = json.loads(response_text)
-            
             if not isinstance(flashcards_data, list):
                 raise ValueError("Response is not a list")
-                
             flashcards = [FlashcardItem(**card) for card in flashcards_data]
-            
+
         except Exception as parse_error:
             logger.error(f"Parse error: {str(parse_error)}, Response: {response}")
             raise HTTPException(status_code=500, detail="Failed to parse generated flashcards")
-        
-        # Create flashcard set
+
+        now = datetime.now(timezone.utc).isoformat()
         flashcard_set = {
             "set_id": f"flashcard_{uuid.uuid4().hex[:12]}",
             "user_id": user.user_id,
             "title": title,
             "description": f"Generated from uploaded content ({len(flashcards)} cards)",
             "flashcards": [card.dict() for card in flashcards],
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc)
+            "created_at": now,
+            "updated_at": now
         }
-        
-        await db.custom_flashcards.insert_one(flashcard_set)
-        
+        supabase.table("custom_flashcards").insert(flashcard_set).execute()
         return CustomFlashcardSet(**flashcard_set)
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Generate flashcards error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate flashcards: {str(e)}")
+
 
 # Include the router in the main app
 app.include_router(api_router)
@@ -865,7 +748,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
