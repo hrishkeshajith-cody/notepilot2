@@ -30,6 +30,8 @@ const StudyApp = () => {
         chapter_title: studyPack.meta.chapter_title,
         summary: studyPack.summary,
         key_terms: studyPack.key_terms,
+         notes: studyPack.notes,         
+  flashcards: studyPack.flashcards, 
       });
     } else {
       setStudyContext(null);
