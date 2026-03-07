@@ -385,6 +385,37 @@ async def logout(request: Request, response: Response):
     return {"message": "Logged out successfully"}
 
 
+# ============ STUDY PACK ENDPOINTS ============
+
+@api_router.get("/study-packs")
+async def get_study_packs(request: Request):
+    try:
+        user = await get_current_user(request)
+        result = supabase.table("study_packs").select("*").eq("user_id", user.user_id).order("created_at", desc=True).limit(20).execute()
+        return result.data or []
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get study packs error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve study packs")
+
+
+@api_router.delete("/study-packs/{pack_id}")
+async def delete_study_pack(pack_id: str, request: Request):
+    try:
+        user = await get_current_user(request)
+        check = supabase.table("study_packs").select("id").eq("id", pack_id).eq("user_id", user.user_id).execute()
+        if not check.data:
+            raise HTTPException(status_code=404, detail="Study pack not found")
+        supabase.table("study_packs").delete().eq("id", pack_id).eq("user_id", user.user_id).execute()
+        return {"message": "Study pack deleted", "id": pack_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete study pack error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete study pack")
+
+
 # ============ CHATBOT ENDPOINTS ============
 
 @api_router.post("/chat", response_model=ChatResponse)
