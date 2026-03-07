@@ -416,14 +416,43 @@ Guidelines:
 IMPORTANT: Always provide COMPLETE and THOROUGH answers."""
 
         if chat_request.study_context:
+            ctx = chat_request.study_context
+            summary = ctx.get('summary', {})
+            key_terms = ctx.get('key_terms', [])
+            notes = ctx.get('notes', [])
+            flashcards = ctx.get('flashcards', [])
+
+            terms_text = "\n".join([f"- {t.get('term','')}: {t.get('meaning','')}" for t in key_terms[:12]])
+            notes_text = "\n\n".join([f"{n.get('title','')}: {n.get('content','')}" for n in notes[:4]])
+            points_text = "\n".join([f"- {p}" for p in summary.get('important_points', [])[:8]])
+            flashcards_text = "\n".join([f"Q: {f.get('q','')}\nA: {f.get('a','')}" for f in flashcards[:8]])
+
             system_message += f"""
 
-Current Study Context:
-- Subject: {chat_request.study_context.get('subject', 'N/A')}
-- Grade: {chat_request.study_context.get('grade', 'N/A')}
-- Chapter: {chat_request.study_context.get('chapter_title', 'N/A')}
+You are helping a Grade {ctx.get('grade', '')} student study this chapter:
+Subject: {ctx.get('subject', '')} | Chapter: {ctx.get('chapter_title', '')}
 
-The student is currently working on this material. Use this context to provide relevant, targeted help."""
+CHAPTER SUMMARY:
+{summary.get('tl_dr', '')}
+
+KEY POINTS FROM THE CHAPTER:
+{points_text}
+
+KEY TERMS:
+{terms_text}
+
+CHAPTER NOTES:
+{notes_text}
+
+FLASHCARD CONTENT:
+{flashcards_text}
+
+IMPORTANT INSTRUCTIONS:
+- Base ALL your answers on the chapter content above
+- When the student asks about something from this chapter, refer to the actual content
+- Quote or reference specific details from the notes, key terms, and points above
+- If asked something not covered in this chapter, say so clearly
+- Answer in the same language as the chapter content if it is not English"""
 
         history_result = supabase.table("chat_history").select("*").eq("session_id", chat_request.session_id).execute()
         history_doc = history_result.data[0] if history_result.data else None
@@ -598,7 +627,6 @@ async def update_flashcard_set(set_id: str, updates: FlashcardSetUpdate, request
 async def delete_flashcard_set(set_id: str, request: Request):
     try:
         user = await get_current_user(request)
-        # Check it exists first
         check = supabase.table("custom_flashcards").select("set_id").eq("set_id", set_id).eq("user_id", user.user_id).execute()
         if not check.data:
             raise HTTPException(status_code=404, detail="Flashcard set not found")
@@ -668,7 +696,7 @@ Only return the JSON array, no other text."""
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "openai/gpt-3.5-turbo",
+                    "model": "google/gemini-2.0-flash-001",
                     "messages": [
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": prompt},
