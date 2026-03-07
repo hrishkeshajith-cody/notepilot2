@@ -27,6 +27,7 @@ export const NotePilotChat = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef(false);
   const { toast } = useToast();
 
   // Auto-scroll to bottom when messages change
@@ -43,83 +44,90 @@ export const NotePilotChat = () => {
     }
   }, [isOpen]);
 
-  // Initialize Web Speech API for voice input with enhanced settings
+  // Initialize Web Speech API ONCE on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      
-      if (SpeechRecognition) {
-        try {
-          recognitionRef.current = new SpeechRecognition();
-          recognitionRef.current.continuous = true; // Keep listening
-          recognitionRef.current.interimResults = true; // Show real-time results
-          recognitionRef.current.lang = 'en-US';
-          recognitionRef.current.maxAlternatives = 3; // Get multiple alternatives for better accuracy
+    if (typeof window === "undefined") return;
 
-          recognitionRef.current.onstart = () => {
-            console.log('Voice recognition started');
-            setIsListening(true);
-            setInterimTranscript("");
-          };
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-          recognitionRef.current.onresult = (event: any) => {
-            let interim = '';
-            let final = '';
+    if (!SpeechRecognition) return;
 
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const transcript = event.results[i][0].transcript;
-              if (event.results[i].isFinal) {
-                final += transcript + ' ';
-              } else {
-                interim += transcript;
-              }
-            }
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
 
-            // Update interim transcript for real-time display
-            setInterimTranscript(interim);
+      recognition.onstart = () => {
+        setIsListening(true);
+        isListeningRef.current = true;
+        setInterimTranscript("");
+      };
 
-            // If we have final results, add to input
-            if (final) {
-              setInput(prev => (prev + ' ' + final).trim());
-              setInterimTranscript("");
-            }
-          };
-
-          recognitionRef.current.onerror = (event: any) => {
-            console.error('Speech recognition error:', event.error);
-            if (event.error !== 'no-speech' && event.error !== 'aborted') {
-              setIsListening(false);
-              setInterimTranscript("");
-            }
-          };
-
-          recognitionRef.current.onend = () => {
-            console.log('Voice recognition ended');
-            if (isListening) {
-              // Auto-restart if still in listening mode (unless user stopped it)
-              try {
-                recognitionRef.current.start();
-              } catch (err) {
-                setIsListening(false);
-                setInterimTranscript("");
-              }
-            } else {
-              setInterimTranscript("");
-            }
-          };
-        } catch (err) {
-          console.error('Failed to initialize speech recognition:', err);
+      recognition.onresult = (event: any) => {
+        let interim = "";
+        let final = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            final += transcript + " ";
+          } else {
+            interim += transcript;
+          }
         }
-      }
-    }
-  }, [isListening]);
+        setInterimTranscript(interim);
+        if (final) {
+          setInput((prev) => (prev + " " + final).trim());
+          setInterimTranscript("");
+        }
+      };
 
-  // Handle auto-response when a new user message is added via askAbout
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        if (event.error !== "no-speech" && event.error !== "aborted") {
+          isListeningRef.current = false;
+          setIsListening(false);
+          setInterimTranscript("");
+        }
+      };
+
+      recognition.onend = () => {
+        // Only restart if user hasn't stopped it
+        if (isListeningRef.current) {
+          try {
+            recognition.start();
+          } catch {
+            isListeningRef.current = false;
+            setIsListening(false);
+            setInterimTranscript("");
+          }
+        } else {
+          setIsListening(false);
+          setInterimTranscript("");
+        }
+      };
+
+      recognitionRef.current = recognition;
+    } catch (err) {
+      console.error("Failed to initialize speech recognition:", err);
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        isListeningRef.current = false;
+        try { recognitionRef.current.stop(); } catch {}
+      }
+    };
+  }, []); // ← empty deps: initialize only once
+
+  // Handle auto-response when a new user message is added
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === "user" && !isLoading && messages.length > 0) {
-      // Check if this message was already processed
-      const hasResponse = messages.length > 1 && messages[messages.length - 2]?.role === "user";
+      const hasResponse =
+        messages.length > 1 && messages[messages.length - 2]?.role === "user";
       if (!hasResponse) {
         generateResponse(lastMessage.content);
       }
@@ -129,13 +137,14 @@ export const NotePilotChat = () => {
   const generateResponse = async (userMessage: string) => {
     setIsLoading(true);
     try {
-      const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || import.meta.env.VITE_BACKEND_URL || "";
-      
+      const backendUrl =
+        import.meta.env.REACT_APP_BACKEND_URL ||
+        import.meta.env.VITE_BACKEND_URL ||
+        "";
+
       const response = await fetch(`${backendUrl}/api/chat`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           message: userMessage,
@@ -144,19 +153,15 @@ export const NotePilotChat = () => {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Chat API error");
-      }
+      if (!response.ok) throw new Error("Chat API error");
 
       const data = await response.json();
-
       addMessage({
         role: "assistant",
         content: data.response || "I couldn't generate a response. Please try again.",
       });
 
-      // Update suggested questions
-      if (data.suggested_questions && data.suggested_questions.length > 0) {
+      if (data.suggested_questions?.length > 0) {
         setSuggestedQuestions(data.suggested_questions);
       }
     } catch (error) {
@@ -190,26 +195,32 @@ export const NotePilotChat = () => {
 
   const toggleVoiceInput = () => {
     if (!recognitionRef.current) {
-      // Silently fail - browser doesn't support it
+      toast({
+        title: "Voice not supported",
+        description: "Your browser doesn't support voice input. Try Chrome.",
+        variant: "destructive",
+      });
       return;
     }
 
-    if (isListening) {
+    if (isListeningRef.current) {
+      isListeningRef.current = false;
       try {
         recognitionRef.current.stop();
-        setIsListening(false);
-        setInterimTranscript("");
       } catch (err) {
-        console.error('Error stopping recognition:', err);
-        setIsListening(false);
-        setInterimTranscript("");
+        console.error("Error stopping recognition:", err);
       }
+      setIsListening(false);
+      setInterimTranscript("");
     } else {
+      isListeningRef.current = true;
+      setInput("");
       try {
-        setInput(""); // Clear input when starting voice
         recognitionRef.current.start();
       } catch (err) {
-        console.error('Error starting recognition:', err);
+        console.error("Error starting recognition:", err);
+        isListeningRef.current = false;
+        setIsListening(false);
       }
     }
   };
@@ -282,7 +293,8 @@ export const NotePilotChat = () => {
                   </div>
                   <h4 className="font-semibold text-foreground mb-2">Hey there! 👋</h4>
                   <p className="text-sm text-muted-foreground mb-4">
-                    I'm NotePilot AI, your friendly study assistant. I have memory of our conversation and can help with your studies!
+                    I'm NotePilot AI, your friendly study assistant. I have memory of our
+                    conversation and can help with your studies!
                   </p>
                   {studyContext && (
                     <div className="mt-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
@@ -337,14 +349,15 @@ export const NotePilotChat = () => {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <Lightbulb className="w-3 h-3 text-primary" />
-                    <span className="text-xs font-medium text-muted-foreground">Suggested questions:</span>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Suggested questions:
+                    </span>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setSuggestedQuestions([])}
                     className="h-6 w-6 p-0 hover:bg-secondary"
-                    title="Dismiss suggestions"
                   >
                     <X className="w-3 h-3" />
                   </Button>
@@ -365,7 +378,6 @@ export const NotePilotChat = () => {
 
             {/* Input */}
             <div className="p-4 border-t border-border bg-secondary/30">
-              {/* Real-time voice transcription display */}
               {isListening && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -375,35 +387,40 @@ export const NotePilotChat = () => {
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <div className="flex gap-1">
-                      <span className="w-1 h-4 bg-primary rounded-full animate-pulse" style={{ animationDelay: "0ms" }} />
-                      <span className="w-1 h-5 bg-primary rounded-full animate-pulse" style={{ animationDelay: "75ms" }} />
-                      <span className="w-1 h-6 bg-primary rounded-full animate-pulse" style={{ animationDelay: "150ms" }} />
-                      <span className="w-1 h-5 bg-primary rounded-full animate-pulse" style={{ animationDelay: "225ms" }} />
-                      <span className="w-1 h-4 bg-primary rounded-full animate-pulse" style={{ animationDelay: "300ms" }} />
+                      {[0, 75, 150, 225, 300].map((delay) => (
+                        <span
+                          key={delay}
+                          className="w-1 bg-primary rounded-full animate-pulse"
+                          style={{ animationDelay: `${delay}ms`, height: `${[16, 20, 24, 20, 16][delay / 75]}px` }}
+                        />
+                      ))}
                     </div>
                     <span className="text-xs font-medium text-primary">Listening...</span>
                   </div>
-                  {(input || interimTranscript) && (
+                  {(input || interimTranscript) ? (
                     <p className="text-sm text-foreground">
                       <span className="font-medium">{input}</span>
                       {interimTranscript && (
                         <span className="text-muted-foreground italic"> {interimTranscript}</span>
                       )}
                     </p>
-                  )}
-                  {!input && !interimTranscript && (
+                  ) : (
                     <p className="text-xs text-muted-foreground italic">Speak now, I'm listening...</p>
                   )}
                 </motion.div>
               )}
-              
+
               <div className="flex gap-2">
                 <Button
                   onClick={toggleVoiceInput}
                   disabled={isLoading}
                   size="icon"
                   variant={isListening ? "default" : "outline"}
-                  className={`shrink-0 transition-all ${isListening ? "gradient-primary text-primary-foreground scale-110 shadow-lg" : "hover:scale-105"}`}
+                  className={`shrink-0 transition-all ${
+                    isListening
+                      ? "gradient-primary text-primary-foreground scale-110 shadow-lg"
+                      : "hover:scale-105"
+                  }`}
                   title={isListening ? "Stop listening" : "Voice input"}
                 >
                   {isListening ? (
