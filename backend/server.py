@@ -387,6 +387,34 @@ async def logout(request: Request, response: Response):
 
 # ============ STUDY PACK ENDPOINTS ============
 
+@api_router.post("/study-packs")
+async def save_study_pack(request: Request):
+    try:
+        user = await get_current_user(request)
+        data = await request.json()
+        now = datetime.now(timezone.utc).isoformat()
+        pack = {
+            "user_id": user.user_id,
+            "chapter_title": data.get("chapter_title"),
+            "subject": data.get("subject"),
+            "grade": data.get("grade"),
+            "summary": data.get("summary"),
+            "key_terms": data.get("key_terms"),
+            "flashcards": data.get("flashcards"),
+            "quiz": data.get("quiz"),
+            "notes": data.get("notes", []),
+            "important_questions": data.get("important_questions", {}),
+            "created_at": now,
+        }
+        result = supabase.table("study_packs").insert(pack).execute()
+        return result.data[0] if result.data else pack
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Save study pack error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save study pack")
+
+
 @api_router.get("/study-packs")
 async def get_study_packs(request: Request):
     try:
