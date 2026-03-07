@@ -16,26 +16,20 @@ import httpx
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Supabase connection
 supabase_url = os.environ['SUPABASE_URL']
 supabase_key = os.environ['SUPABASE_KEY']
 supabase: Client = create_client(supabase_url, supabase_key)
 
-# Create the main app without a prefix
 app = FastAPI()
-
-# Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
 
-# Define Models
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_name: str
@@ -44,7 +38,6 @@ class StatusCheck(BaseModel):
 class StatusCheckCreate(BaseModel):
     client_name: str
 
-# Auth Models
 class User(BaseModel):
     user_id: str
     email: str
@@ -70,9 +63,8 @@ class UserSession(BaseModel):
     expires_at: datetime
     created_at: datetime
 
-# Chatbot Models
 class ChatMessage(BaseModel):
-    role: str  # "user" or "assistant"
+    role: str
     content: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -92,7 +84,6 @@ class ChatHistory(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-# Custom Flashcard Models
 class FlashcardItem(BaseModel):
     question: str
     answer: str
@@ -126,7 +117,6 @@ async def root():
 
 @api_router.post("/generate-from-youtube")
 async def generate_study_pack_from_youtube(request: Request):
-    """Generate study pack from YouTube video URL"""
     try:
         data = await request.json()
         youtube_url = data.get("youtube_url")
@@ -187,7 +177,6 @@ async def get_status_checks():
 
 @api_router.post("/auth/signup")
 async def signup(user_data: UserCreate, response: Response):
-    """Simple email/password signup"""
     try:
         existing = supabase.table("users").select("user_id").eq("email", user_data.email).execute()
         if existing.data:
@@ -235,7 +224,6 @@ async def signup(user_data: UserCreate, response: Response):
 
 @api_router.post("/auth/login")
 async def login(credentials: UserLogin, response: Response):
-    """Simple email/password login"""
     try:
         result = supabase.table("users").select("*").eq("email", credentials.email).execute()
         if not result.data:
@@ -282,7 +270,6 @@ async def login(credentials: UserLogin, response: Response):
 
 @api_router.post("/auth/session")
 async def exchange_session(session_data: SessionData, response: Response):
-    """Exchange session_id for user data and session_token"""
     try:
         async with httpx.AsyncClient() as http_client:
             auth_response = await http_client.get(
@@ -402,7 +389,6 @@ async def logout(request: Request, response: Response):
 
 @api_router.post("/chat", response_model=ChatResponse)
 async def chat_with_notepilot(chat_request: ChatRequest, request: Request):
-    """NotePilot chatbot with session memory and study context awareness"""
     try:
         api_key = os.environ.get('OPENROUTER_API_KEY')
         if not api_key:
@@ -427,7 +413,7 @@ Guidelines:
 - Answer fully first, then summarize if needed
 - If unsure, admit it and guide the student to find answers
 
-IMPORTANT: Always provide COMPLETE and THOROUGH answers. Better to give a full explanation than leave students confused."""
+IMPORTANT: Always provide COMPLETE and THOROUGH answers."""
 
         if chat_request.study_context:
             system_message += f"""
@@ -439,11 +425,9 @@ Current Study Context:
 
 The student is currently working on this material. Use this context to provide relevant, targeted help."""
 
-        # Get chat history from Supabase
         history_result = supabase.table("chat_history").select("*").eq("session_id", chat_request.session_id).execute()
         history_doc = history_result.data[0] if history_result.data else None
 
-        # Build messages array
         messages = [{"role": "system", "content": system_message}]
         if history_doc and history_doc.get("messages"):
             for msg in history_doc["messages"]:
@@ -451,7 +435,6 @@ The student is currently working on this material. Use this context to provide r
                     messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": chat_request.message})
 
-        # Call OpenRouter
         async with httpx.AsyncClient() as http_client:
             openrouter_response = await http_client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -472,7 +455,6 @@ The student is currently working on this material. Use this context to provide r
 
         response_text = openrouter_response.json()["choices"][0]["message"]["content"]
 
-        # Suggested questions
         if chat_request.study_context:
             subject = chat_request.study_context.get('subject', '')
             chapter = chat_request.study_context.get('chapter_title', '')
@@ -488,7 +470,6 @@ The student is currently working on this material. Use this context to provide r
                 "What's a good way to remember this?",
             ]
 
-        # Save to Supabase
         now = datetime.now(timezone.utc).isoformat()
         new_messages = [
             {"role": "user", "content": chat_request.message, "timestamp": now},
@@ -617,9 +598,11 @@ async def update_flashcard_set(set_id: str, updates: FlashcardSetUpdate, request
 async def delete_flashcard_set(set_id: str, request: Request):
     try:
         user = await get_current_user(request)
-        result = supabase.table("custom_flashcards").delete().eq("set_id", set_id).eq("user_id", user.user_id).execute()
-        if not result.data:
+        # Check it exists first
+        check = supabase.table("custom_flashcards").select("set_id").eq("set_id", set_id).eq("user_id", user.user_id).execute()
+        if not check.data:
             raise HTTPException(status_code=404, detail="Flashcard set not found")
+        supabase.table("custom_flashcards").delete().eq("set_id", set_id).eq("user_id", user.user_id).execute()
         return {"message": "Flashcard set deleted", "set_id": set_id}
     except HTTPException:
         raise
@@ -630,7 +613,6 @@ async def delete_flashcard_set(set_id: str, request: Request):
 
 @api_router.post("/flashcards/from-text")
 async def create_flashcards_from_text(request: Request):
-    """Generate flashcards from uploaded text or PDF"""
     try:
         user = await get_current_user(request)
 
@@ -738,7 +720,6 @@ Only return the JSON array, no other text."""
         raise HTTPException(status_code=500, detail=f"Failed to generate flashcards: {str(e)}")
 
 
-# Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
