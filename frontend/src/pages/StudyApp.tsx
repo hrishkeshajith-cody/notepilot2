@@ -125,8 +125,8 @@ const StudyApp = () => {
         toast({
           title: "Notes ready & saved!",
           description: `Generated and saved materials for "${data.chapterTitle}"`,
-          setSidebarRefresh(prev => prev + 1);
         });
+        setSidebarRefresh(prev => prev + 1);
       }
     } catch (error) {
       console.error("Generation error:", error);
