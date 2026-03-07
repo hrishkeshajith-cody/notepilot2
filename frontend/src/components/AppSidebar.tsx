@@ -24,6 +24,7 @@ interface AppSidebarProps {
   onSelectFlashcardSet: (set: CustomFlashcardSet) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  refreshTrigger?: number;
 }
 
 interface Profile {
@@ -44,7 +45,7 @@ interface SavedStudyPack {
   important_questions: any;
 }
 
-export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, onToggleCollapse }: AppSidebarProps) {
+export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, onToggleCollapse, refreshTrigger = 0 }: AppSidebarProps) {
   const [studyPacks, setStudyPacks] = useState<SavedStudyPack[]>([]);
   const [customFlashcards, setCustomFlashcards] = useState<CustomFlashcardSet[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -65,6 +66,13 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
       fetchCustomFlashcards();
     }
   }, [user]);
+
+  // Re-fetch study packs whenever refreshTrigger changes
+  useEffect(() => {
+    if (user && refreshTrigger > 0) {
+      fetchStudyPacks();
+    }
+  }, [refreshTrigger]);
 
   const fetchProfile = async () => {
     if (!user) return;
