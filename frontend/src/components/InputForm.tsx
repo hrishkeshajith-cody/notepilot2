@@ -87,7 +87,6 @@ export const InputForm = ({ onGenerate, isLoading }: InputFormProps) => {
   const [pdfFile, setPdfFile] = useState<{ name: string; data: string } | null>(null);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const [isProcessingYoutube, setIsProcessingYoutube] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
