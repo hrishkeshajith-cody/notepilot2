@@ -9,7 +9,8 @@ import { InputFormData, StudyPack, CustomFlashcardSet } from "@/types/studyPack"
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useNotePilot } from "@/contexts/NotePilotContext";
-import { supabase } from "@/integrations/supabase/client";
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || "";
 
 const StudyApp = () => {
   const [studyPack, setStudyPack] = useState<StudyPack | null>(null);
@@ -21,7 +22,6 @@ const StudyApp = () => {
   const { toast } = useToast();
   const { setStudyContext } = useNotePilot();
 
-  // Update study context when study pack changes
   useEffect(() => {
     if (studyPack) {
       setStudyContext({
@@ -30,8 +30,8 @@ const StudyApp = () => {
         chapter_title: studyPack.meta.chapter_title,
         summary: studyPack.summary,
         key_terms: studyPack.key_terms,
-         notes: studyPack.notes,         
-  flashcards: studyPack.flashcards, 
+        notes: studyPack.notes,
+        flashcards: studyPack.flashcards,
       });
     } else {
       setStudyContext(null);
@@ -42,7 +42,6 @@ const StudyApp = () => {
     setIsLoading(true);
 
     try {
-      // Use custom auth user instead of Supabase session
       if (!user) {
         toast({
           title: "Not authenticated",
@@ -53,7 +52,7 @@ const StudyApp = () => {
         return;
       }
 
-      // Call the AI-powered edge function using the Supabase anon key for authorization
+      // Call the AI edge function
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-study-pack`,
         {
@@ -77,23 +76,11 @@ const StudyApp = () => {
 
       if (!response.ok) {
         if (response.status === 429) {
-          toast({
-            title: "Rate limit reached",
-            description: "Please wait a moment and try again.",
-            variant: "destructive",
-          });
+          toast({ title: "Rate limit reached", description: "Please wait a moment and try again.", variant: "destructive" });
         } else if (response.status === 402) {
-          toast({
-            title: "Credits exhausted",
-            description: "AI credits have been used up. Please add more credits.",
-            variant: "destructive",
-          });
+          toast({ title: "Credits exhausted", description: "AI credits have been used up. Please add more credits.", variant: "destructive" });
         } else {
-          toast({
-            title: "Generation failed",
-            description: result.error || "Failed to generate study pack. Please try again.",
-            variant: "destructive",
-          });
+          toast({ title: "Generation failed", description: result.error || "Failed to generate study pack. Please try again.", variant: "destructive" });
         }
         setIsLoading(false);
         return;
@@ -101,11 +88,12 @@ const StudyApp = () => {
 
       setStudyPack(result);
 
-      // Auto-save to database using custom user_id
-      const { error: saveError } = await supabase
-        .from("study_packs")
-        .insert({
-          user_id: user.user_id,
+      // Save via backend (not Supabase directly — RLS would block it)
+      const saveResponse = await fetch(`${BACKEND_URL}/api/study-packs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
           chapter_title: data.chapterTitle,
           subject: data.subject,
           grade: data.grade,
@@ -115,14 +103,15 @@ const StudyApp = () => {
           quiz: result.quiz,
           notes: result.notes || [],
           important_questions: result.important_questions || { one_mark: [], three_mark: [], five_mark: [] },
-        });
+        }),
+      });
 
-      if (saveError) {
-        console.error("Failed to save study pack:", saveError);
+      if (!saveResponse.ok) {
+        console.error("Failed to save study pack:", await saveResponse.text());
         toast({
           title: "Notes ready!",
           description: `Generated materials for "${data.chapterTitle}" (save failed)`,
-        })
+        });
       } else {
         toast({
           title: "Notes ready & saved!",
@@ -167,7 +156,6 @@ const StudyApp = () => {
 
   return (
     <div className="min-h-screen bg-background flex w-full">
-      {/* Sidebar */}
       <AppSidebar
         onSelectPack={handleSelectStudyPack}
         onSelectFlashcardSet={handleSelectFlashcardSet}
@@ -176,7 +164,6 @@ const StudyApp = () => {
         refreshTrigger={sidebarRefresh}
       />
 
-      {/* Floating toggle button when sidebar is hidden */}
       {sidebarCollapsed && (
         <motion.button
           initial={{ opacity: 0, x: -20 }}
@@ -186,18 +173,7 @@ const StudyApp = () => {
           aria-label="Open sidebar"
           style={{ position: 'fixed' }}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-foreground"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
             <line x1="3" y1="12" x2="21" y2="12" />
             <line x1="3" y1="6" x2="21" y2="6" />
             <line x1="3" y1="18" x2="21" y2="18" />
@@ -205,9 +181,7 @@ const StudyApp = () => {
         </motion.button>
       )}
 
-      {/* Main Content */}
       <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'ml-0' : 'ml-80'}`}>
-        {/* Background decoration */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl" />
           <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-accent/5 blur-3xl" />
@@ -226,7 +200,6 @@ const StudyApp = () => {
               <StudyPackDisplay studyPack={studyPack} onBack={handleBack} />
             ) : (
               <div className="space-y-8">
-                {/* Hero Section */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -251,7 +224,6 @@ const StudyApp = () => {
                   </p>
                 </motion.div>
 
-                {/* Form */}
                 <div className="bg-card rounded-2xl border border-border shadow-xl p-6 md:p-8">
                   <InputForm onGenerate={handleGenerate} isLoading={isLoading} />
                 </div>
@@ -260,7 +232,6 @@ const StudyApp = () => {
           </div>
         </main>
 
-        {/* Footer */}
         <footer className="border-t border-border py-6 relative z-10">
           <div className="container mx-auto px-4 text-center">
             <p className="text-sm text-muted-foreground">
