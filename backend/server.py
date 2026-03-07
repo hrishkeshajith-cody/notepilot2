@@ -443,7 +443,7 @@ The student is currently working on this material. Use this context to provide r
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "openai/gpt-3.5-turbo",
+                    "model": "google/gemini-2.0-flash-001",
                     "messages": messages,
                 },
                 timeout=60.0,
