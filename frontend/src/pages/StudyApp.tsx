@@ -16,6 +16,7 @@ const StudyApp = () => {
   const [selectedFlashcardSet, setSelectedFlashcardSet] = useState<CustomFlashcardSet | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const { user } = useAuth();
   const { toast } = useToast();
   const { setStudyContext } = useNotePilot();
