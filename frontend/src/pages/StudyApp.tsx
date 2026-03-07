@@ -120,11 +120,12 @@ const StudyApp = () => {
         toast({
           title: "Notes ready!",
           description: `Generated materials for "${data.chapterTitle}" (save failed)`,
-        });
+        })
       } else {
         toast({
           title: "Notes ready & saved!",
           description: `Generated and saved materials for "${data.chapterTitle}"`,
+          setSidebarRefresh(prev => prev + 1);
         });
       }
     } catch (error) {
