@@ -78,11 +78,12 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
     if (!user) return;
     
     const { data, error } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("user_id", user.id)
-      .single();
-
+  .from("study_packs")
+  .select("*")
+  .eq("user_id", user?.user_id)
+  .order("created_at", { ascending: false })
+  .limit(10);
+    
     if (!error && data) {
       setProfile(data);
     }
