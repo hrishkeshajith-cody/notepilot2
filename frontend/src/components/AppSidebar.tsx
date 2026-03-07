@@ -89,22 +89,24 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
     }
   };
 
-  const fetchStudyPacks = async () => {
-    setIsLoading(true);
-    const { data, error } = await supabase
-      .from("study_packs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(10);
+ const fetchStudyPacks = async () => {
+  setIsLoading(true);
+  console.log("Fetching packs for user_id:", user?.user_id);
+  const { data, error } = await supabase
+    .from("study_packs")
+    .select("*")
+    .eq("user_id", user?.user_id)
+    .order("created_at", { ascending: false })
+    .limit(10);
 
-    if (error) {
-      console.error("Error fetching study packs:", error);
-    } else {
-      setStudyPacks(data || []);
-    }
-    setIsLoading(false);
-  };
-
+  console.log("Result:", data, "Error:", error);
+  if (error) {
+    console.error("Error fetching study packs:", error);
+  } else {
+    setStudyPacks(data || []);
+  }
+  setIsLoading(false);
+};
   const fetchCustomFlashcards = async () => {
     setIsLoadingFlashcards(true);
     try {
