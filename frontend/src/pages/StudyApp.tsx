@@ -171,6 +171,7 @@ const StudyApp = () => {
         onSelectFlashcardSet={handleSelectFlashcardSet}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        refreshTrigger={sidebarRefresh}
       />
 
       {/* Floating toggle button when sidebar is hidden */}
