@@ -5,16 +5,18 @@ import { InputForm } from "@/components/InputForm";
 import { StudyPackDisplay } from "@/components/StudyPackDisplay";
 import { AppSidebar } from "@/components/AppSidebar";
 import { FlashcardViewer } from "@/components/FlashcardViewer";
+import { CommunityPage } from "@/components/CommunityPage";
 import { InputFormData, StudyPack, CustomFlashcardSet } from "@/types/studyPack";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useNotePilot } from "@/contexts/NotePilotContext";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
 const StudyApp = () => {
   const [studyPack, setStudyPack] = useState<StudyPack | null>(null);
   const [selectedFlashcardSet, setSelectedFlashcardSet] = useState<CustomFlashcardSet | null>(null);
+  const [showCommunity, setShowCommunity] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
@@ -40,19 +42,13 @@ const StudyApp = () => {
 
   const handleGenerate = async (data: InputFormData) => {
     setIsLoading(true);
-
     try {
       if (!user) {
-        toast({
-          title: "Not authenticated",
-          description: "Please log in to generate study packs.",
-          variant: "destructive",
-        });
+        toast({ title: "Not authenticated", description: "Please log in to generate study packs.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
 
-      // Call the AI edge function
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-study-pack`,
         {
@@ -78,9 +74,9 @@ const StudyApp = () => {
         if (response.status === 429) {
           toast({ title: "Rate limit reached", description: "Please wait a moment and try again.", variant: "destructive" });
         } else if (response.status === 402) {
-          toast({ title: "Credits exhausted", description: "AI credits have been used up. Please add more credits.", variant: "destructive" });
+          toast({ title: "Credits exhausted", description: "AI credits have been used up.", variant: "destructive" });
         } else {
-          toast({ title: "Generation failed", description: result.error || "Failed to generate study pack. Please try again.", variant: "destructive" });
+          toast({ title: "Generation failed", description: result.error || "Failed to generate study pack.", variant: "destructive" });
         }
         setIsLoading(false);
         return;
@@ -88,7 +84,6 @@ const StudyApp = () => {
 
       setStudyPack(result);
 
-      // Save via backend (not Supabase directly — RLS would block it)
       const saveResponse = await fetch(`${BACKEND_URL}/api/study-packs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -108,24 +103,14 @@ const StudyApp = () => {
 
       if (!saveResponse.ok) {
         console.error("Failed to save study pack:", await saveResponse.text());
-        toast({
-          title: "Notes ready!",
-          description: `Generated materials for "${data.chapterTitle}" (save failed)`,
-        });
+        toast({ title: "Notes ready!", description: `Generated materials for "${data.chapterTitle}" (save failed)` });
       } else {
-        toast({
-          title: "Notes ready & saved!",
-          description: `Generated and saved materials for "${data.chapterTitle}"`,
-        });
+        toast({ title: "Notes ready & saved!", description: `Generated and saved materials for "${data.chapterTitle}"` });
         setSidebarRefresh(prev => prev + 1);
       }
     } catch (error) {
       console.error("Generation error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to connect to AI service. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to connect to AI service. Please try again.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -134,24 +119,25 @@ const StudyApp = () => {
   const handleBack = () => {
     setStudyPack(null);
     setSelectedFlashcardSet(null);
+    setShowCommunity(false);
   };
 
   const handleSelectFlashcardSet = (set: CustomFlashcardSet) => {
     setStudyPack(null);
+    setShowCommunity(false);
     setSelectedFlashcardSet(set);
-  };
-
-  const handleFlashcardSetUpdate = (updatedSet: CustomFlashcardSet) => {
-    setSelectedFlashcardSet(updatedSet);
-  };
-
-  const handleFlashcardSetDelete = () => {
-    setSelectedFlashcardSet(null);
   };
 
   const handleSelectStudyPack = (pack: StudyPack) => {
     setSelectedFlashcardSet(null);
+    setShowCommunity(false);
     setStudyPack(pack);
+  };
+
+  const handleOpenCommunity = () => {
+    setStudyPack(null);
+    setSelectedFlashcardSet(null);
+    setShowCommunity(true);
   };
 
   return (
@@ -159,6 +145,7 @@ const StudyApp = () => {
       <AppSidebar
         onSelectPack={handleSelectStudyPack}
         onSelectFlashcardSet={handleSelectFlashcardSet}
+        onOpenCommunity={handleOpenCommunity}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         refreshTrigger={sidebarRefresh}
@@ -171,7 +158,7 @@ const StudyApp = () => {
           onClick={() => setSidebarCollapsed(false)}
           className="fixed top-6 left-6 z-[100] p-3 rounded-full bg-card border-2 border-border shadow-xl hover:shadow-2xl transition-all hover:scale-110 backdrop-blur-sm"
           aria-label="Open sidebar"
-          style={{ position: 'fixed' }}
+          style={{ position: "fixed" }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
             <line x1="3" y1="12" x2="21" y2="12" />
@@ -181,7 +168,7 @@ const StudyApp = () => {
         </motion.button>
       )}
 
-      <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'ml-0' : 'ml-80'}`}>
+      <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "ml-0" : "ml-80"}`}>
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl" />
           <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-accent/5 blur-3xl" />
@@ -189,22 +176,25 @@ const StudyApp = () => {
 
         <main className="flex-1 relative z-10 overflow-y-auto">
           <div className="container mx-auto px-4 py-8 md:py-12 max-w-4xl">
-            {selectedFlashcardSet ? (
+            {showCommunity ? (
+              <CommunityPage
+                onBack={handleBack}
+                onOpenStudyPack={handleSelectStudyPack}
+                onOpenFlashcardSet={handleSelectFlashcardSet}
+                currentUserId={user?.user_id}
+              />
+            ) : selectedFlashcardSet ? (
               <FlashcardViewer
                 flashcardSet={selectedFlashcardSet}
                 onBack={handleBack}
-                onUpdate={handleFlashcardSetUpdate}
-                onDelete={handleFlashcardSetDelete}
+                onUpdate={setSelectedFlashcardSet}
+                onDelete={handleBack}
               />
             ) : studyPack ? (
               <StudyPackDisplay studyPack={studyPack} onBack={handleBack} />
             ) : (
               <div className="space-y-8">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-center max-w-2xl mx-auto"
-                >
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center max-w-2xl mx-auto">
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
@@ -223,7 +213,6 @@ const StudyApp = () => {
                     Paste your chapter text or upload a PDF and get AI-generated summaries, flashcards, key terms, and quizzes.
                   </p>
                 </motion.div>
-
                 <div className="bg-card rounded-2xl border border-border shadow-xl p-6 md:p-8">
                   <InputForm onGenerate={handleGenerate} isLoading={isLoading} />
                 </div>
@@ -234,9 +223,7 @@ const StudyApp = () => {
 
         <footer className="border-t border-border py-6 relative z-10">
           <div className="container mx-auto px-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Notepilot • Making learning easier, one chapter at a time
-            </p>
+            <p className="text-sm text-muted-foreground">Notepilot • Making learning easier, one chapter at a time</p>
           </div>
         </footer>
       </div>
