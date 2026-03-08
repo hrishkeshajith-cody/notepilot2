@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { BookOpen, History, LogOut, ChevronLeft, ChevronRight, Moon, Sun, Palette, Trash2, Loader2, Layers, Plus } from "lucide-react";
+import { BookOpen, History, LogOut, ChevronLeft, ChevronRight, Moon, Sun, Palette, Trash2, Loader2, Layers, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useThemePreferences } from "@/hooks/useThemePreferences";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -19,16 +18,15 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
+
 interface AppSidebarProps {
   onSelectPack: (pack: StudyPack) => void;
   onSelectFlashcardSet: (set: CustomFlashcardSet) => void;
+  onOpenCommunity: () => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   refreshTrigger?: number;
-}
-
-interface Profile {
-  full_name: string | null;
 }
 
 interface SavedStudyPack {
@@ -45,10 +43,9 @@ interface SavedStudyPack {
   important_questions: any;
 }
 
-export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, onToggleCollapse, refreshTrigger = 0 }: AppSidebarProps) {
+export function AppSidebar({ onSelectPack, onSelectFlashcardSet, onOpenCommunity, isCollapsed, onToggleCollapse, refreshTrigger = 0 }: AppSidebarProps) {
   const [studyPacks, setStudyPacks] = useState<SavedStudyPack[]>([]);
   const [customFlashcards, setCustomFlashcards] = useState<CustomFlashcardSet[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingFlashcards, setIsLoadingFlashcards] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -61,63 +58,42 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
 
   useEffect(() => {
     if (user) {
-      fetchProfile();
       fetchStudyPacks();
       fetchCustomFlashcards();
     }
   }, [user]);
 
-  // Re-fetch study packs whenever refreshTrigger changes
   useEffect(() => {
     if (user && refreshTrigger > 0) {
       fetchStudyPacks();
     }
   }, [refreshTrigger]);
 
-  const fetchProfile = async () => {
-    if (!user) return;
-    
-    const { data, error } = await supabase
-  .from("study_packs")
-  .select("*")
-  .eq("user_id", user?.user_id)
-  .order("created_at", { ascending: false })
-  .limit(10);
-    
-    if (!error && data) {
-      setProfile(data);
+  const fetchStudyPacks = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/study-packs`, {
+        credentials: "include",
+      });
+      if (response.ok) {
+        setStudyPacks(await response.json());
+      } else {
+        console.error("Error fetching study packs:", await response.text());
+      }
+    } catch (error) {
+      console.error("Error fetching study packs:", error);
     }
+    setIsLoading(false);
   };
 
- const fetchStudyPacks = async () => {
-  setIsLoading(true);
-  console.log("Fetching packs for user_id:", user?.user_id);
-  const { data, error } = await supabase
-    .from("study_packs")
-    .select("*")
-    .eq("user_id", user?.user_id)
-    .order("created_at", { ascending: false })
-    .limit(10);
-
-  console.log("Result:", data, "Error:", error);
-  if (error) {
-    console.error("Error fetching study packs:", error);
-  } else {
-    setStudyPacks(data || []);
-  }
-  setIsLoading(false);
-};
   const fetchCustomFlashcards = async () => {
     setIsLoadingFlashcards(true);
     try {
-      const backendUrl = import.meta.env.REACT_APP_BACKEND_URL || import.meta.env.VITE_BACKEND_URL || "";
-      const response = await fetch(`${backendUrl}/api/flashcards`, {
+      const response = await fetch(`${BACKEND_URL}/api/flashcards`, {
         credentials: "include",
       });
-      
       if (response.ok) {
-        const data = await response.json();
-        setCustomFlashcards(data);
+        setCustomFlashcards(await response.json());
       } else {
         console.error("Error fetching custom flashcards");
       }
@@ -151,51 +127,35 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
 
   const handleSignOut = async () => {
     await signOut();
-    toast({
-      title: "Signed out",
-      description: "You've been successfully signed out.",
-    });
+    toast({ title: "Signed out", description: "You've been successfully signed out." });
     navigate("/");
   };
 
   const handleDeletePack = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setDeletingId(id);
-
-    const { error } = await supabase
-      .from("study_packs")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      toast({
-        title: "Delete failed",
-        description: "Could not delete the study pack.",
-        variant: "destructive",
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/study-packs/${id}`, {
+        method: "DELETE",
+        credentials: "include",
       });
-    } else {
+      if (!response.ok) throw new Error("Delete failed");
       setStudyPacks(studyPacks.filter((p) => p.id !== id));
-      toast({
-        title: "Deleted",
-        description: "Study pack removed.",
-      });
+      toast({ title: "Deleted", description: "Study pack removed." });
+    } catch {
+      toast({ title: "Delete failed", description: "Could not delete the study pack.", variant: "destructive" });
     }
     setDeletingId(null);
   };
 
   const getInitials = () => {
-    if (profile?.full_name) {
-      return profile.full_name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
+    if (user?.name) {
+      return user.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
     }
     return user?.email?.slice(0, 2).toUpperCase() || "U";
   };
 
-  const displayName = profile?.full_name || user?.email || "User";
+  const displayName = user?.name || user?.email || "User";
 
   return (
     <aside
@@ -217,17 +177,8 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
             </div>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggleCollapse}
-          className={cn("h-8 w-8", isCollapsed && "mx-auto")}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
+        <Button variant="ghost" size="icon" onClick={onToggleCollapse} className={cn("h-8 w-8", isCollapsed && "mx-auto")}>
+          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
       </div>
 
@@ -236,16 +187,9 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
         {isCollapsed ? (
           <>
             <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                {getInitials()}
-              </AvatarFallback>
+              <AvatarFallback className="bg-primary/10 text-primary font-medium">{getInitials()}</AvatarFallback>
             </Avatar>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="h-8 w-8"
-            >
+            <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="h-8 w-8">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
           </>
@@ -253,25 +197,16 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                  {getInitials()}
-                </AvatarFallback>
+                <AvatarFallback className="bg-primary/10 text-primary font-medium">{getInitials()}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-foreground truncate">{displayName}</p>
-                {profile?.full_name && user?.email && (
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                )}
+                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
               </div>
             </div>
-            
+
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="flex-1 justify-start gap-2"
-              >
+              <Button variant="outline" size="sm" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="flex-1 justify-start gap-2">
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 {theme === "dark" ? "Light" : "Dark"}
               </Button>
@@ -302,9 +237,24 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
         )}
       </div>
 
-      {/* Study Packs History */}
+      {/* Community Button */}
+      {!isCollapsed && (
+        <div className="px-4 pt-3 pb-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenCommunity}
+            className="w-full justify-start gap-2 border-primary/30 text-primary hover:bg-primary/10"
+          >
+            <Globe className="w-4 h-4" />
+            Community Library
+          </Button>
+        </div>
+      )}
+
+      {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {/* My Flashcards Section */}
+        {/* My Flashcards */}
         {!isCollapsed && (
           <div className="p-4 pb-2">
             <div className="flex items-center justify-between">
@@ -316,19 +266,15 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
             </div>
           </div>
         )}
-        
+
         {!isCollapsed && (
           <div className="px-2 max-h-40 overflow-y-auto">
             {isLoadingFlashcards ? (
               <div className="space-y-2 p-2">
-                {[1, 2].map((i) => (
-                  <div key={i} className="h-10 bg-muted/50 rounded-lg animate-pulse" />
-                ))}
+                {[1, 2].map((i) => <div key={i} className="h-10 bg-muted/50 rounded-lg animate-pulse" />)}
               </div>
             ) : customFlashcards.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-3 px-2">
-                No flashcard sets yet
-              </p>
+              <p className="text-sm text-muted-foreground text-center py-3 px-2">No flashcard sets yet</p>
             ) : (
               <div className="space-y-1 py-2">
                 {customFlashcards.map((set) => (
@@ -336,14 +282,9 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
                     key={set.set_id}
                     onClick={() => onSelectFlashcardSet(set)}
                     className="group relative w-full text-left rounded-lg transition-colors hover:bg-muted/50 p-3"
-                    data-testid={`flashcard-set-${set.set_id}`}
                   >
-                    <p className="font-medium text-foreground text-sm truncate">
-                      {set.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {set.flashcards.length} cards
-                    </p>
+                    <p className="font-medium text-foreground text-sm truncate">{set.title}</p>
+                    <p className="text-xs text-muted-foreground">{set.flashcards.length} cards</p>
                   </button>
                 ))}
               </div>
@@ -353,7 +294,7 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
 
         <Separator className="mx-4 my-2" />
 
-        {/* Recent Study Packs Section */}
+        {/* Recent Study Packs */}
         {!isCollapsed && (
           <div className="p-4 pb-2 pt-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -362,26 +303,16 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
             </div>
           </div>
         )}
-        
+
         <div className="flex-1 overflow-y-auto px-2">
           {isLoading ? (
             <div className="space-y-2 p-2">
               {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "h-12 bg-muted/50 rounded-lg animate-pulse",
-                    isCollapsed && "h-10 w-10 mx-auto"
-                  )}
-                />
+                <div key={i} className={cn("h-12 bg-muted/50 rounded-lg animate-pulse", isCollapsed && "h-10 w-10 mx-auto")} />
               ))}
             </div>
           ) : studyPacks.length === 0 ? (
-            !isCollapsed && (
-              <p className="text-sm text-muted-foreground text-center py-4 px-2">
-                No saved study packs yet
-              </p>
-            )
+            !isCollapsed && <p className="text-sm text-muted-foreground text-center py-4 px-2">No saved study packs yet</p>
           ) : (
             <div className="space-y-1 py-2">
               {studyPacks.map((pack) => (
@@ -392,22 +323,15 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
                     isCollapsed ? "p-2 flex justify-center" : "p-3"
                   )}
                 >
-                  <button
-                    onClick={() => handleSelectPack(pack)}
-                    className="w-full text-left"
-                  >
+                  <button onClick={() => handleSelectPack(pack)} className="w-full text-left">
                     {isCollapsed ? (
                       <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
                         {pack.subject.slice(0, 2).toUpperCase()}
                       </div>
                     ) : (
                       <>
-                        <p className="font-medium text-foreground text-sm truncate pr-8">
-                          {pack.chapter_title}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {pack.subject} • {pack.grade}
-                        </p>
+                        <p className="font-medium text-foreground text-sm truncate pr-8">{pack.chapter_title}</p>
+                        <p className="text-xs text-muted-foreground truncate">{pack.subject} • {pack.grade}</p>
                       </>
                     )}
                   </button>
@@ -419,11 +343,7 @@ export function AppSidebar({ onSelectPack, onSelectFlashcardSet, isCollapsed, on
                       onClick={(e) => handleDeletePack(e, pack.id)}
                       disabled={deletingId === pack.id}
                     >
-                      {deletingId === pack.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                      )}
+                      {deletingId === pack.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-destructive" />}
                     </Button>
                   )}
                 </div>
