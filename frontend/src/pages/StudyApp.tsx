@@ -81,6 +81,7 @@ const StudyApp = () => {
         setIsLoading(false);
         return;
       }
+      
 
       setStudyPack(result);
 
