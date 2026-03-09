@@ -166,6 +166,7 @@ async def signup(user_data: UserCreate, response: Response):
     except Exception as e:
         logger.error(f"Signup error: {str(e)}")
         raise HTTPException(status_code=500, detail="Signup failed")
+        
 
 @api_router.post("/auth/login")
 async def login(credentials: UserLogin, response: Response):
