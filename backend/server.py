@@ -410,7 +410,7 @@ Base ALL answers on the chapter content above. Answer in the same language as th
             openrouter_response = await http_client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "google/gemini-2.0-flash-001", "messages": messages},
+                json={"model": "meta-llama/llama-3.3-70b-instruct:free", "messages": messages},
                 timeout=60.0,
             )
 
