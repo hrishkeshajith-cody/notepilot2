@@ -28,16 +28,16 @@ export const NotePilotChat = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const isListeningRef = useRef(false);
+  // Track what final text has already been appended to avoid duplicates on restart
+  const appendedTextRef = useRef("");
   const { toast } = useToast();
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Focus input when chat opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
@@ -55,7 +55,7 @@ export const NotePilotChat = () => {
 
     try {
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      recognition.continuous = false; // Use false to avoid restart duplication issues
       recognition.interimResults = true;
       recognition.lang = "en-US";
       recognition.maxAlternatives = 1;
@@ -68,18 +68,22 @@ export const NotePilotChat = () => {
 
       recognition.onresult = (event: any) => {
         let interim = "";
-        let final = "";
+        let newFinal = "";
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            final += transcript + " ";
+            newFinal += transcript + " ";
           } else {
             interim += transcript;
           }
         }
+
         setInterimTranscript(interim);
-        if (final) {
-          setInput((prev) => (prev + " " + final).trim());
+
+        if (newFinal) {
+          appendedTextRef.current += newFinal;
+          setInput(appendedTextRef.current.trim());
           setInterimTranscript("");
         }
       };
@@ -94,7 +98,7 @@ export const NotePilotChat = () => {
       };
 
       recognition.onend = () => {
-        // Only restart if user hasn't stopped it
+        // Restart only if still listening (continuous mode via manual restart)
         if (isListeningRef.current) {
           try {
             recognition.start();
@@ -120,9 +124,8 @@ export const NotePilotChat = () => {
         try { recognitionRef.current.stop(); } catch {}
       }
     };
-  }, []); // ← empty deps: initialize only once
+  }, []);
 
-  // Handle auto-response when a new user message is added
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === "user" && !isLoading && messages.length > 0) {
@@ -204,6 +207,7 @@ export const NotePilotChat = () => {
     }
 
     if (isListeningRef.current) {
+      // Stop listening
       isListeningRef.current = false;
       try {
         recognitionRef.current.stop();
@@ -213,6 +217,8 @@ export const NotePilotChat = () => {
       setIsListening(false);
       setInterimTranscript("");
     } else {
+      // Start listening — reset the appended text tracker
+      appendedTextRef.current = "";
       isListeningRef.current = true;
       setInput("");
       try {
@@ -265,20 +271,10 @@ export const NotePilotChat = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={clearMessages}
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                >
+                <Button variant="ghost" size="icon" onClick={clearMessages} className="h-8 w-8 text-muted-foreground hover:text-foreground">
                   <Trash2 className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsOpen(false)}
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                >
+                <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)} className="h-8 w-8 text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
                 </Button>
               </div>
@@ -325,11 +321,7 @@ export const NotePilotChat = () => {
                     </motion.div>
                   ))}
                   {isLoading && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex justify-start"
-                    >
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                       <div className="bg-secondary px-4 py-3 rounded-2xl rounded-bl-md">
                         <div className="flex gap-1.5">
                           <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
@@ -349,16 +341,9 @@ export const NotePilotChat = () => {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <Lightbulb className="w-3 h-3 text-primary" />
-                    <span className="text-xs font-medium text-muted-foreground">
-                      Suggested questions:
-                    </span>
+                    <span className="text-xs font-medium text-muted-foreground">Suggested questions:</span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSuggestedQuestions([])}
-                    className="h-6 w-6 p-0 hover:bg-secondary"
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setSuggestedQuestions([])} className="h-6 w-6 p-0 hover:bg-secondary">
                     <X className="w-3 h-3" />
                   </Button>
                 </div>
@@ -424,10 +409,7 @@ export const NotePilotChat = () => {
                   title={isListening ? "Stop listening" : "Voice input"}
                 >
                   {isListening ? (
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                    >
+                    <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
                       <Mic className="w-4 h-4" />
                     </motion.div>
                   ) : (
