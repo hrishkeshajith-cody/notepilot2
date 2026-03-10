@@ -410,7 +410,7 @@ Base ALL answers on the chapter content above. Answer in the same language as th
             openrouter_response = await http_client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "mistralai/mistral-7b-instruct:free", "messages": messages},
+                json={"model": "stepfun/step-3.5-flash:free", "messages": messages},
                 timeout=60.0,
             )
 
