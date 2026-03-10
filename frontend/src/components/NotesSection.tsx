@@ -162,15 +162,10 @@ export const NotesSection = ({ notes }: NotesSectionProps) => {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-5 pb-5">
-                  <div className="pl-10 space-y-2">
-                    {parseToPoints(note.content).map((point, i) => (
-                      <div key={i} className="flex gap-3 group">
-                        <div className="flex items-start pt-2">
-                          <div className="w-2 h-2 rounded-full bg-primary/60 group-hover:bg-primary transition-colors shrink-0" />
-                        </div>
-                        <p className="text-foreground/90 leading-relaxed text-sm">{point}</p>
-                      </div>
-                    ))}
+                  <div className="pl-10 prose prose-sm dark:prose-invert max-w-none">
+                    <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                      {note.content}
+                    </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
