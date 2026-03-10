@@ -166,7 +166,6 @@ async def signup(user_data: UserCreate, response: Response):
     except Exception as e:
         logger.error(f"Signup error: {str(e)}")
         raise HTTPException(status_code=500, detail="Signup failed")
-        
 
 @api_router.post("/auth/login")
 async def login(credentials: UserLogin, response: Response):
@@ -415,9 +414,10 @@ Base ALL answers on the chapter content above. Answer in the same language as th
                 timeout=60.0,
             )
 
-       if openrouter_response.status_code != 200:
-         logger.error(f"OpenRouter error: {openrouter_response.status_code} - {openrouter_response.text}")
-         raise HTTPException(status_code=500, detail=f"OpenRouter error: {openrouter_response.text}")
+        if openrouter_response.status_code != 200:
+            logger.error(f"OpenRouter error: {openrouter_response.status_code} - {openrouter_response.text}")
+            raise HTTPException(status_code=500, detail=f"OpenRouter error: {openrouter_response.text}")
+
         response_text = openrouter_response.json()["choices"][0]["message"]["content"]
 
         if chat_request.study_context:
