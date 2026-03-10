@@ -415,9 +415,9 @@ Base ALL answers on the chapter content above. Answer in the same language as th
                 timeout=60.0,
             )
 
-        if openrouter_response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Failed to get response from AI service")
-
+       if openrouter_response.status_code != 200:
+         logger.error(f"OpenRouter error: {openrouter_response.status_code} - {openrouter_response.text}")
+         raise HTTPException(status_code=500, detail=f"OpenRouter error: {openrouter_response.text}")
         response_text = openrouter_response.json()["choices"][0]["message"]["content"]
 
         if chat_request.study_context:
