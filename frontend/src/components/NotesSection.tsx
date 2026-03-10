@@ -38,13 +38,18 @@ const parseToPoints = (content: string): string[] => {
 };
 
 // NEW: Forces bulleted text into a solid paragraph block
+// NEW: Goes absolute nuclear on line breaks and bullets
 const formatToParagraph = (content: string): string => {
   if (!content) return "";
+  
   return content
-    .split("\n")
-    .map(l => l.replace(/^[•\-\*]\s*/, "").replace(/^\d+[\.\)]\s*/, "").trim())
-    .filter(l => l.length > 0)
-    .join(" "); // Squishes everything together with a space!
+    // 1. Nuke ALL line breaks (mac, windows, linux) and tabs, turn them into spaces
+    .replace(/[\r\n\t]+/g, " ")
+    // 2. Assassinate any bullets (•, -, *) or numbers (1., 2.) hiding in the text
+    .replace(/(?:^|\s)(?:[•\-\*]|\d+[\.\)])\s+/g, " ")
+    // 3. Fix any awkward double spaces we just created by squishing it all together
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 const downloadNotes = (notes: NoteSection[], viewMode: "chapter" | "points") => {
