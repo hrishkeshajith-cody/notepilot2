@@ -162,10 +162,8 @@ export const NotesSection = ({ notes }: NotesSectionProps) => {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-5 pb-5">
-                  <div className="pl-10 prose prose-sm dark:prose-invert max-w-none">
-                    <div className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                      {note.content}
-                    </div>
+                  <div className="pl-10 text-foreground/90 leading-relaxed whitespace-pre-wrap text-sm">
+                    {note.content}
                   </div>
                 </AccordionContent>
               </AccordionItem>
