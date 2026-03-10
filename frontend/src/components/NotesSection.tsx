@@ -37,13 +37,24 @@ const parseToPoints = (content: string): string[] => {
     .filter(s => s.length > 10);
 };
 
+// NEW: Forces bulleted text into a solid paragraph block
+const formatToParagraph = (content: string): string => {
+  if (!content) return "";
+  return content
+    .split("\n")
+    .map(l => l.replace(/^[•\-\*]\s*/, "").replace(/^\d+[\.\)]\s*/, "").trim())
+    .filter(l => l.length > 0)
+    .join(" "); // Squishes everything together with a space!
+};
+
 const downloadNotes = (notes: NoteSection[], viewMode: "chapter" | "points") => {
   let content = `DETAILED NOTES\n${"=".repeat(50)}\n\n`;
 
   notes.forEach((note, index) => {
     content += `${index + 1}. ${note.title}\n${"-".repeat(note.title.length + 3)}\n\n`;
     if (viewMode === "chapter") {
-      content += `${note.content}\n\n`;
+      // FIXED: Uses paragraph formatting for download too
+      content += `${formatToParagraph(note.content)}\n\n`;
     } else {
       const points = parseToPoints(note.content);
       points.forEach((point, idx) => {
@@ -136,7 +147,7 @@ export const NotesSection = ({ notes }: NotesSectionProps) => {
 
       {/* Notes Content */}
       {viewMode === "chapter" ? (
-        /* Chapter View — renders bullet lines cleanly */
+        /* Chapter View */
         <Accordion type="multiple" defaultValue={notes.map((_, i) => `note-${i}`)} className="space-y-3">
           {notes.map((note, index) => (
             <motion.div
@@ -162,8 +173,9 @@ export const NotesSection = ({ notes }: NotesSectionProps) => {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-5 pb-5">
-                  <div className="pl-10 text-foreground/90 leading-relaxed whitespace-pre-wrap text-sm">
-                    {note.content}
+                  {/* FIXED: Removed whitespace-pre-wrap and used formatToParagraph */}
+                  <div className="pl-10 text-foreground/90 leading-relaxed text-sm">
+                    {formatToParagraph(note.content)}
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -171,7 +183,7 @@ export const NotesSection = ({ notes }: NotesSectionProps) => {
           ))}
         </Accordion>
       ) : (
-        /* Points View — same bullet rendering */
+        /* Points View */
         <Accordion type="multiple" defaultValue={notes.map((_, i) => `point-${i}`)} className="space-y-3">
           {notes.map((note, index) => {
             const points = parseToPoints(note.content);
