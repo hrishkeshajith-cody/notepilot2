@@ -48,7 +48,7 @@ const StudyApp = () => {
         setIsLoading(false);
         return;
       }
-
+      console.log("Sending chapterText length:", data.chapterText?.length, "pdfData length:", data.pdfData?.length);
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-study-pack`,
         {
