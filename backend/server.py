@@ -372,7 +372,7 @@ Guidelines:
 - Give practical examples when helpful
 - If unsure, admit it and guide the student
 
-IMPORTANT: Always provide COMPLETE and THOROUGH answers."""
+IMPORTANT: Keep answers concise and to the point. For simple questions give short answers (2-4 sentences). Only give detailed answers when the question genuinely requires it."""
 
         if chat_request.study_context:
             ctx = chat_request.study_context
