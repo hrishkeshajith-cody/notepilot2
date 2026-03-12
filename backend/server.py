@@ -225,6 +225,26 @@ async def exchange_session(session_data: SessionData, response: Response):
 async def get_current_user_info(request: Request):
     return await get_current_user(request)
 
+@api_router.post("/auth/change-password")
+async def change_password(request: Request):
+    try:
+        user = await get_current_user(request)
+        data = await request.json()
+        current_password = data.get("current_password")
+        new_password = data.get("new_password")
+        if not current_password or not new_password:
+            raise HTTPException(status_code=400, detail="Both current and new password are required")
+        result = supabase.table("users").select("password").eq("user_id", user.user_id).execute()
+        if not result.data or result.data[0]["password"] != current_password:
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+        supabase.table("users").update({"password": new_password}).eq("user_id", user.user_id).execute()
+        return {"message": "Password changed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Change password error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to change password")
+
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
     session_token = await get_session_token(request)
@@ -372,7 +392,7 @@ Guidelines:
 - Give practical examples when helpful
 - If unsure, admit it and guide the student
 
-IMPORTANT: Keep answers concise and to the point. For simple questions give short answers (2-4 sentences). Only give detailed answers when the question genuinely requires it."""
+IMPORTANT: Always provide COMPLETE and THOROUGH answers."""
 
         if chat_request.study_context:
             ctx = chat_request.study_context
@@ -410,7 +430,7 @@ Base ALL answers on the chapter content above. Answer in the same language as th
             openrouter_response = await http_client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "stepfun/step-3.5-flash:free", "messages": messages},
+                json={"model": "meta-llama/llama-3.3-70b-instruct:free", "messages": messages},
                 timeout=60.0,
             )
 
